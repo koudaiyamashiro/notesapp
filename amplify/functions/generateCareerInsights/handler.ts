@@ -63,6 +63,19 @@ function buildCompanyInsight(company: Record<string, unknown>, index: number) {
   }
 }
 
+function buildOpenAICompanyInsight(company: Record<string, unknown>, index: number) {
+  const name = String(company.companyName || company.name || `Company ${index + 1}`)
+  const reasons = asArray(company.reasons).filter((value): value is string => typeof value === 'string').slice(0, 5)
+  const risks = asArray(company.risks).filter((value): value is string => typeof value === 'string').slice(0, 4)
+
+  return {
+    companyName: name,
+    summary: String(company.summary || `${name}は有望な候補です。`),
+    reasons: reasons.length > 0 ? reasons : ['候補企業との親和性が高いです。'],
+    risks: risks.length > 0 ? risks : ['追加の確認が必要です。'],
+  }
+}
+
 function buildMockResponse(
   userProfile: Record<string, unknown>,
   topCompanies: unknown[],
@@ -99,6 +112,37 @@ function extractJsonTextFromOpenAIResponse(payload: any): string {
   return ''
 }
 
+function stripJsonCodeFence(text: string) {
+  return text
+    .replace(/^\s*```json\s*/i, '')
+    .replace(/^\s*```\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim()
+}
+
+function parseOpenAIJsonText(text: string) {
+  try {
+    return JSON.parse(text)
+  } catch (firstError) {
+    const stripped = stripJsonCodeFence(text)
+    if (stripped !== text) {
+      try {
+        return JSON.parse(stripped)
+      } catch (secondError) {
+        console.warn('generateCareerInsights OpenAI parseError', {
+          message: secondError instanceof Error ? secondError.message : 'unknown_error',
+        })
+        return null
+      }
+    }
+
+    console.warn('generateCareerInsights OpenAI parseError', {
+      message: firstError instanceof Error ? firstError.message : 'unknown_error',
+    })
+    return null
+  }
+}
+
 async function generateWithOpenAI(
   apiKey: string,
   userProfile: Record<string, unknown>,
@@ -113,14 +157,24 @@ async function generateWithOpenAI(
 
   const systemPrompt = [
     'あなたはキャリア分析アシスタントです。',
-    '必ずJSONのみを返してください。Markdownや説明文は不要です。',
-    'JSONフォーマットは次のキーを必須にしてください:',
-    'aiSummary: string',
-    'riskAnalysis: string[]',
-    'nextActions: string[]',
-    'companyInsights: Array<{ companyName: string; rank: number; recommendationTitle: string; summary: string; reasonCards: Array<{ title: string; detail: string }>; cautionPoints: string[]; conditionTags: string[]; scoreBreakdown: Array<{ label: string; value: number }>; comparisonTarget: string; comparisonReasons: string[]; careerPath: { oneYear: string; threeYear: string; fiveYear: string } }>',
+    '必ずJSONだけを返してください。Markdown、説明文、コードブロック、前置き、後置きは一切不要です。',
+    '返却JSONは次の形式に厳密に一致させてください。余計なキーは追加しないでください。',
+    '{',
+    '  "aiSummary": "string",',
+    '  "riskAnalysis": ["string", "string"],',
+    '  "nextActions": ["string", "string", "string"],',
+    '  "companyInsights": [',
+    '    {',
+    '      "companyName": "string",',
+    '      "summary": "string",',
+    '      "reasons": ["string", "string"],',
+    '      "risks": ["string"]',
+    '    }',
+    '  ],',
+    '  "debugSource": "openai"',
+    '}',
     'companyInsightsは入力のtopCompaniesに対応させてください。',
-    'riskAnalysisとnextActionsはそれぞれ2件以上返してください。',
+    'riskAnalysisは2件以上、nextActionsは3件以上返してください。',
   ].join('\n')
 
   const userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
@@ -150,7 +204,9 @@ async function generateWithOpenAI(
   const text = extractJsonTextFromOpenAIResponse(raw)
   if (!text) return null
 
-  const parsed = JSON.parse(text)
+  console.log('generateCareerInsights openaiRawPreview', text.slice(0, 1000))
+
+  const parsed = parseOpenAIJsonText(text)
   if (!parsed || typeof parsed !== 'object') return null
 
   const aiSummary = typeof parsed.aiSummary === 'string' ? parsed.aiSummary : ''
@@ -165,9 +221,9 @@ async function generateWithOpenAI(
   return {
     debugSource: 'openai',
     aiSummary,
-    riskAnalysis: riskAnalysis.length > 0 ? riskAnalysis : ['リスク分析の生成に失敗しました。'],
-    nextActions: nextActions.length > 0 ? nextActions : ['次アクションの生成に失敗しました。'],
-    companyInsights,
+    riskAnalysis: riskAnalysis.length > 0 ? riskAnalysis.slice(0, 5) : ['リスク分析の生成に失敗しました。'],
+    nextActions: nextActions.length > 0 ? nextActions.slice(0, 5) : ['次アクションの生成に失敗しました。'],
+    companyInsights: companyInsights.map((company: Record<string, unknown>, index: number) => buildOpenAICompanyInsight(company, index)),
     userProfileSummary: pickProfileSummary(userProfile),
     analysisSnapshot: {
       score: analysisResult.score || analysisResult.rawScore || '未設定',

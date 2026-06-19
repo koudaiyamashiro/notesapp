@@ -164,6 +164,24 @@ function buildCompanyInsights(profile, company, index, total) {
   }
 }
 
+function normalizeCompanyInsight(company, index) {
+  const reasons = Array.isArray(company.reasons) ? company.reasons.filter((item) => typeof item === 'string') : []
+  const risks = Array.isArray(company.risks) ? company.risks.filter((item) => typeof item === 'string') : []
+  const reasonCards = reasons.map((reason, reasonIndex) => ({
+    title: `理由${reasonIndex + 1}`,
+    detail: reason,
+  }))
+
+  return {
+    ...company,
+    rank: company.rank || index + 1,
+    reasonCards: company.reasonCards || reasonCards,
+    cautionPoints: company.cautionPoints || risks,
+    comparisonReasons: company.comparisonReasons || reasons,
+    summary: company.summary || company.recommendation || '',
+  }
+}
+
 async function callGenerateCareerInsights(payload) {
   const endpoint = resolveCareerInsightsEndpoint()
   if (!endpoint) return null
@@ -195,7 +213,7 @@ async function callGenerateCareerInsights(payload) {
 function normalizeAiResponse(response, profile, topCompanies) {
   if (!response) return null
 
-  const companies = response.companies || response.companyInsights || []
+  const companies = (response.companies || response.companyInsights || []).map((company, index) => normalizeCompanyInsight(company, index))
   return {
     debugSource: response.debugSource || 'mock',
     provider: response.provider || 'remote',
@@ -204,7 +222,7 @@ function normalizeAiResponse(response, profile, topCompanies) {
     profileSummary: response.profileSummary || extractProfileSignals(profile),
     aiSummary: response.aiSummary || response.summary || 'AI推薦理由を取得しました。',
     summary: response.summary || response.aiSummary || 'AI推薦理由を取得しました。',
-    companyInsights: response.companyInsights || companies,
+    companyInsights: companies,
     companies,
     riskAnalysis: response.riskAnalysis || [],
     nextActions: response.nextActions || [],
