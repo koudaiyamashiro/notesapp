@@ -6,6 +6,8 @@ function normalizeText(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+const CAREER_INSIGHTS_ENDPOINT = import.meta.env.VITE_GENERATE_CAREER_INSIGHTS_URL || import.meta.env.VITE_AI_ANALYSIS_ENDPOINT || ''
+
 function extractProfileSignals(profile) {
   const strengths = Array.isArray(profile.strengths) ? profile.strengths : []
   const weaknesses = Array.isArray(profile.weaknesses) ? profile.weaknesses : []
@@ -151,7 +153,68 @@ function buildCompanyInsights(profile, company, index, total) {
   }
 }
 
-export async function generateCompanyInsights(profile, topCompanies = []) {
+async function callGenerateCareerInsights(payload) {
+  if (!CAREER_INSIGHTS_ENDPOINT) return null
+
+  const response = await fetch(CAREER_INSIGHTS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    throw new Error(`generateCareerInsights request failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  if (data && typeof data.body === 'string') {
+    try {
+      return JSON.parse(data.body)
+    } catch {
+      return data
+    }
+  }
+
+  return data
+}
+
+function normalizeAiResponse(response, profile, topCompanies) {
+  if (!response) return null
+
+  const companies = response.companies || response.companyInsights || []
+  return {
+    provider: response.provider || 'remote',
+    mode: response.mode || 'remote',
+    generatedAt: response.generatedAt || new Date().toISOString(),
+    profileSummary: response.profileSummary || extractProfileSignals(profile),
+    aiSummary: response.aiSummary || response.summary || 'AI推薦理由を取得しました。',
+    summary: response.summary || response.aiSummary || 'AI推薦理由を取得しました。',
+    companyInsights: response.companyInsights || companies,
+    companies,
+    riskAnalysis: response.riskAnalysis || [],
+    nextActions: response.nextActions || [],
+    topCompanies,
+  }
+}
+
+export async function generateCompanyInsights(profile, topCompanies = [], analysisResult = {}) {
+  const payload = {
+    userProfile: profile,
+    topCompanies,
+    analysisResult,
+  }
+
+  try {
+    const remoteResponse = await callGenerateCareerInsights(payload)
+    if (remoteResponse) {
+      return normalizeAiResponse(remoteResponse, profile, topCompanies)
+    }
+  } catch {
+    // Fall back to local mock until the backend endpoint is deployed and configured.
+  }
+
   await sleep(120)
 
   const normalizedProfile = extractProfileSignals(profile)
@@ -162,8 +225,19 @@ export async function generateCompanyInsights(profile, topCompanies = []) {
     mode: 'mock',
     generatedAt: new Date().toISOString(),
     profileSummary: normalizedProfile,
+    aiSummary: 'AI推薦理由のモックレスポンスです。後で OpenAI / Perplexity に差し替え可能な形で返しています。',
     summary: 'AI推薦理由のモックレスポンスです。後で OpenAI / Perplexity に差し替え可能な形で返しています。',
+    companyInsights: companies,
     companies,
+    riskAnalysis: [
+      '現時点ではモックなので、実際の外部AI推論は行っていません。',
+      '本番化時はサーバー側で OpenAI / Perplexity API を呼び出してください。',
+    ],
+    nextActions: [
+      '将来的に環境変数から AI API キーを読み込む',
+      'サーバー側でプロンプト整形とレスポンス整形を行う',
+      'クライアントはこの Function のみを呼び出す',
+    ],
   }
 }
 

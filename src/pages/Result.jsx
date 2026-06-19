@@ -78,7 +78,7 @@ export default function Result() {
     let active = true
     setAiInsights(null)
 
-    generateCompanyInsights(form, result.recommendedCompanies)
+    generateCompanyInsights(form, result.recommendedCompanies, result)
       .then((response) => {
         if (active) setAiInsights(response)
       })
