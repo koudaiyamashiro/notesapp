@@ -20,18 +20,40 @@ function parseSalaryRange(rangeText) {
   return { min, max, mid }
 }
 
+const defaultCompany = {
+  id: '',
+  name: '',
+  industry: 'その他',
+  companyType: '',
+  description: '',
+  recommendedRoles: [],
+  strengths: [],
+  risks: [],
+  culture: '',
+  salaryRange: '0-0万円',
+  growthScore: 70,
+  stabilityScore: 50,
+  ownershipScore: 50,
+  remoteScore: 50,
+  workLifeBalanceScore: 50,
+  suitableFor: [],
+  notSuitableFor: [],
+  matchKeywords: [],
+}
+
 const companyCandidates = companies.map((company) => {
-  const { min: salaryMin, max: salaryMax, mid: salaryMid } = parseSalaryRange(company.salaryRange)
+  const companyData = { ...defaultCompany, ...company }
+  const { min: salaryMin, max: salaryMax, mid: salaryMid } = parseSalaryRange(companyData.salaryRange)
   return {
-    ...company,
-    key: company.id,
+    ...companyData,
+    key: companyData.id,
     salaryMin,
     salaryMax,
     salaryMid,
     income: salaryMid,
-    score: company.growthScore,
-    discretion: company.ownershipScore >= 80 ? '高' : company.ownershipScore >= 65 ? '中' : '低',
-    stability: company.stabilityScore >= 85 ? '高' : company.stabilityScore >= 70 ? '中' : '低',
+    score: companyData.growthScore,
+    discretion: companyData.ownershipScore >= 80 ? '高' : companyData.ownershipScore >= 65 ? '中' : '低',
+    stability: companyData.stabilityScore >= 85 ? '高' : companyData.stabilityScore >= 70 ? '中' : '低',
   }
 })
 
