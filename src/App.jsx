@@ -1,15 +1,18 @@
-import reactLogo from "./assets/react.svg";
-import "./App.css";
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Home from './pages/Home.jsx'
+import Assessment from './pages/Assessment.jsx'
+import Result from './pages/Result.jsx'
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={reactLogo} className="logo react" alt="React logo" />
-        <h1>Hello from Amplify</h1>
-      </header>
-    </div>
-  );
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/assessment" element={<Assessment />} />
+        <Route path="/result" element={<Result />} />
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 export default App;
