@@ -16,6 +16,60 @@ const INITIAL_FORM = {
   idealFuture: '',
 }
 
+function filterOptions(options, query) {
+  const keyword = String(query || '').trim().toLowerCase()
+  if (!keyword) return options
+  return options.filter((item) => item.toLowerCase().includes(keyword))
+}
+
+function TagMultiSelect({ label, description, selected, options, searchValue, setSearchValue, onToggle }) {
+  const filteredOptions = filterOptions(options, searchValue)
+  return (
+    <div className="grid gap-3">
+      <div>
+        <p className="flex items-center gap-2 text-base font-semibold text-slate-950">🔥 {label}</p>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {selected.length > 0 ? selected.map((item) => (
+          <button
+            type="button"
+            key={item}
+            onClick={() => onToggle(item)}
+            className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-200"
+          >
+            {item}
+            <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-300 text-[11px] text-slate-700">×</span>
+          </button>
+        )) : (
+          <div className="text-sm text-slate-500">まだ選択されていません</div>
+        )}
+      </div>
+      <input
+        type="text"
+        value={searchValue}
+        onChange={(e) => setSearchValue(e.target.value)}
+        placeholder="キーワードで絞り込み"
+        className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+      />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredOptions.length > 0 ? filteredOptions.map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => onToggle(item)}
+            className={`rounded-full border px-4 py-2 text-sm text-left transition ${selected.includes(item) ? 'border-sky-500 bg-sky-50 text-slate-950' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+          >
+            {item}
+          </button>
+        )) : (
+          <div className="text-sm text-slate-500">該当する選択肢がありません</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const ROLE_OPTIONS = [
   '営業',
   'マーケティング',
@@ -83,6 +137,10 @@ export default function Assessment() {
   const [error, setError] = useState('')
 
   const strengthOptions = useMemo(() => STRENGTH_OPTIONS[form.role] || STRENGTH_OPTIONS['その他'], [form.role])
+  const [searchStrength, setSearchStrength] = useState('')
+  const [searchWeakness, setSearchWeakness] = useState('')
+  const [searchPurpose, setSearchPurpose] = useState('')
+  const [searchIndustry, setSearchIndustry] = useState('')
 
   const toggleChip = (key, value) => {
     const current = form[key] || []
@@ -263,93 +321,65 @@ export default function Assessment() {
 
             {step === 1 && (
               <div className="grid gap-8">
-                <div className="grid gap-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-900">得意領域</p>
-                    <p className="text-sm text-slate-500">複数選択可・「その他」時は入力</p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    {strengthOptions.map((item) => (
-                      <button
-                        type="button"
-                        key={item}
-                        onClick={() => toggleChip('strengths', item)}
-                        className={`rounded-3xl border px-4 py-3 text-sm transition ${form.strengths.includes(item) ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                  <CustomTagInput name="その他の得意領域" add={(val, setter) => addCustomTag('strengths', val, setter)} />
-                </div>
+                <TagMultiSelect
+                  label="得意領域"
+                  description="あなたが強みとして活かせる領域"
+                  selected={form.strengths}
+                  options={strengthOptions}
+                  searchValue={searchStrength}
+                  setSearchValue={setSearchStrength}
+                  onToggle={(item) => toggleChip('strengths', item)}
+                />
+                <CustomTagInput name="その他の得意領域" add={(val, setter) => addCustomTag('strengths', val, setter)} />
 
-                <div className="grid gap-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-900">苦手領域</p>
-                    <p className="text-sm text-slate-500">複数選択可・「その他」時は入力</p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    {WEAKNESS_OPTIONS.map((item) => (
-                      <button
-                        type="button"
-                        key={item}
-                        onClick={() => toggleChip('weaknesses', item)}
-                        className={`rounded-3xl border px-4 py-3 text-sm transition ${form.weaknesses.includes(item) ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                  <CustomTagInput name="その他の苦手領域" add={(val, setter) => addCustomTag('weaknesses', val, setter)} />
-                </div>
+                <TagMultiSelect
+                  label="苦手領域"
+                  description="改善したい業務や不得意な領域"
+                  selected={form.weaknesses}
+                  options={WEAKNESS_OPTIONS}
+                  searchValue={searchWeakness}
+                  setSearchValue={setSearchWeakness}
+                  onToggle={(item) => toggleChip('weaknesses', item)}
+                />
+                <CustomTagInput name="その他の苦手領域" add={(val, setter) => addCustomTag('weaknesses', val, setter)} />
               </div>
             )}
 
             {step === 2 && (
               <div className="grid gap-6">
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">転職目的</p>
-                    <p className="text-sm text-slate-500">複数選択可</p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {PURPOSE_OPTIONS.map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => toggleChip('purpose', item)}
-                          className={`rounded-3xl border px-4 py-3 text-sm transition ${form.purpose.includes(item) ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <label className="grid gap-2 text-sm font-medium text-slate-900">
-                    希望する働き方
-                    <select
-                      value={form.workStyle}
-                      onChange={handleChange('workStyle')}
-                      className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
-                    >
-                      <option value="">選択してください</option>
-                      {WORK_STYLE_OPTIONS.map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+                <TagMultiSelect
+                  label="転職目的"
+                  description="あなたが転職先に求める価値やゴールを複数選択してください。"
+                  selected={form.purpose}
+                  options={PURPOSE_OPTIONS}
+                  searchValue={searchPurpose}
+                  setSearchValue={setSearchPurpose}
+                  onToggle={(item) => toggleChip('purpose', item)}
+                />
 
-                <div className="grid gap-4">
-                  <p className="text-sm font-medium text-slate-900">希望業界</p>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    {INDUSTRY_OPTIONS.map((item) => (
-                      <button
-                        type="button"
-                        key={item}
-                        onClick={() => toggleChip('desiredIndustry', item)}
-                        className={`rounded-3xl border px-4 py-3 text-sm transition ${form.desiredIndustry.includes(item) ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-                        {item}
-                      </button>
+                <label className="grid gap-2 text-sm font-medium text-slate-900">
+                  希望する働き方
+                  <select
+                    value={form.workStyle}
+                    onChange={handleChange('workStyle')}
+                    className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+                  >
+                    <option value="">選択してください</option>
+                    {WORK_STYLE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
                     ))}
-                  </div>
-                </div>
+                  </select>
+                </label>
+
+                <TagMultiSelect
+                  label="希望業界"
+                  description="キャリアを築きたい業界を選んでください。複数選択できます。"
+                  selected={form.desiredIndustry}
+                  options={INDUSTRY_OPTIONS}
+                  searchValue={searchIndustry}
+                  setSearchValue={setSearchIndustry}
+                  onToggle={(item) => toggleChip('desiredIndustry', item)}
+                />
 
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
                   5年後の理想像
