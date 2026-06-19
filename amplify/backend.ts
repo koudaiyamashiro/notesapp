@@ -18,7 +18,7 @@ const generateCareerInsightsUrl = backend.generateCareerInsights.resources.lambd
   cors: {
     allowCredentials: false,
     allowedOrigins: ['*'],
-    allowedMethods: [HttpMethod.POST, HttpMethod.OPTIONS],
+    allowedMethods: [HttpMethod.POST],
     allowedHeaders: ['content-type'],
   },
 });
