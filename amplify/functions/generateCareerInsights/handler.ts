@@ -1,5 +1,7 @@
 declare const process: { env: Record<string, string | undefined> }
 
+const DEBUG_VERSION = '2026-06-19-debug-v1'
+
 type CareerInsightsRequest = {
   userProfile?: Record<string, unknown>
   topCompanies?: Array<Record<string, unknown>>
@@ -7,6 +9,7 @@ type CareerInsightsRequest = {
 }
 
 type CareerInsightsResponse = {
+  debugVersion: string
   debugSource: 'openai' | 'mock'
   aiSummary: string
   companyInsights: Array<Record<string, unknown>>
@@ -82,6 +85,7 @@ function buildMockResponse(
   analysisResult: Record<string, unknown>
 ): CareerInsightsResponse {
   return {
+    debugVersion: DEBUG_VERSION,
     debugSource: 'mock',
     aiSummary: 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
     companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company as Record<string, unknown>, index)),
@@ -219,6 +223,7 @@ async function generateWithOpenAI(
   }
 
   return {
+    debugVersion: DEBUG_VERSION,
     debugSource: 'openai',
     aiSummary,
     riskAnalysis: riskAnalysis.length > 0 ? riskAnalysis.slice(0, 5) : ['リスク分析の生成に失敗しました。'],
@@ -233,6 +238,8 @@ async function generateWithOpenAI(
 }
 
 export async function handler(event: { body?: string; requestContext?: { http?: { method?: string } } } | CareerInsightsRequest = {}) {
+  console.log(`generateCareerInsights handler version: ${DEBUG_VERSION}`)
+
   const method = 'requestContext' in event ? event.requestContext?.http?.method : undefined
 
   if (method === 'OPTIONS') {

@@ -213,6 +213,9 @@ export default function Result() {
                 {!aiLoading && !aiError && aiInsights?.debugSource && (
                   <p className="mt-1 text-[11px] text-slate-400">debugSource: {aiInsights.debugSource}</p>
                 )}
+                {!aiLoading && !aiError && aiInsights?.debugVersion && (
+                  <p className="mt-1 text-[11px] text-slate-400">debugVersion: {aiInsights.debugVersion}</p>
+                )}
               </div>
               <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
                 {showOtherCompanies ? '6〜20位候補を閉じる' : 'その他の候補企業を見る'}
