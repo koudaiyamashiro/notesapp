@@ -1,4 +1,4 @@
-import companies from '../data/companies.js'
+import companies from '../data/companies/index.js'
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
