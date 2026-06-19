@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import Header from '../components/Header.jsx'
@@ -6,6 +6,7 @@ import Roadmap from '../components/Roadmap.jsx'
 import CompanyCard from '../components/CompanyCard.jsx'
 import CompanyModal from '../components/CompanyModal.jsx'
 import MarketValueModal from '../components/MarketValueModal.jsx'
+import { generateCompanyInsights } from '../services/aiAnalysisService.js'
 import { analyzeCareerProfile } from '../services/careerAnalysisService.js'
 const RadarWrapper = lazy(() => import('../components/RadarWrapper.jsx'))
 const StarGrid = lazy(() => import('../components/StarGrid.jsx'))
@@ -34,15 +35,68 @@ function ProgressBar({ value }) {
   )
 }
 
+function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
+  return baseCompanies.map((company) => {
+    const aiCompany = aiCompanies.find((item) => item.companyName === company.name)
+    if (!aiCompany) return company
+
+    return {
+      ...company,
+      recommendationReasons: {
+        ...(company.recommendationReasons || {}),
+        reasonCards: aiCompany.reasonCards || company.recommendationReasons?.reasonCards || [],
+        shortReasons: aiCompany.reasonCards?.map((item) => item.title) || company.recommendationReasons?.shortReasons || [],
+        comparisonTarget: aiCompany.comparisonTarget || company.recommendationReasons?.comparisonTarget || '',
+        comparisonReasons: aiCompany.comparisonReasons || company.recommendationReasons?.comparisonReasons || [],
+      },
+      recommendation: aiCompany.summary || company.recommendation,
+      caution: aiCompany.cautionPoints || company.caution,
+      conditionTags: aiCompany.conditionTags || company.conditionTags,
+      scoreBreakdown: aiCompany.scoreBreakdown || company.scoreBreakdown,
+      careerPathPreview: aiCompany.careerPath || company.careerPathPreview,
+      profileHighlights: [
+        ...(aiCompany.profileSummary ? [aiCompany.profileSummary.role, aiCompany.profileSummary.level, aiCompany.profileSummary.workStyle].filter(Boolean) : []),
+        ...(company.profileHighlights || []),
+      ].slice(0, 8),
+      aiInsights: aiCompany,
+    }
+  })
+}
+
 export default function Result() {
   const location = useLocation()
   const navigate = useNavigate()
   const form = location.state || DEFAULT_FORM
   const result = useMemo(() => analyzeCareerProfile(form), [form])
+  const [aiInsights, setAiInsights] = useState(null)
   const [openCompany, setOpenCompany] = useState(null)
   const [openMarket, setOpenMarket] = useState(false)
   const [highlightedMetric, setHighlightedMetric] = useState('')
   const [showOtherCompanies, setShowOtherCompanies] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    setAiInsights(null)
+
+    generateCompanyInsights(form, result.recommendedCompanies)
+      .then((response) => {
+        if (active) setAiInsights(response)
+      })
+      .catch(() => {
+        if (active) setAiInsights({ provider: 'mock', summary: 'AI推薦理由の生成に失敗しました。', companies: [] })
+      })
+
+    return () => {
+      active = false
+    }
+  }, [form, result.recommendedCompanies])
+
+  const recommendedCompanies = useMemo(
+    () => mergeCompanyInsights(result.recommendedCompanies, aiInsights?.companies),
+    [aiInsights?.companies, result.recommendedCompanies]
+  )
+
+  const selectedCompany = openCompany
 
   const openModal = (company) => setOpenCompany(company)
   const closeModal = () => setOpenCompany(null)
@@ -143,13 +197,14 @@ export default function Result() {
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500">おすすめ企業ランキング</p>
                 <h2 className="mt-3 text-2xl font-semibold text-slate-950">上位5社の企業候補</h2>
                 <p className="mt-2 text-sm text-slate-600">表示は上位5社までに絞り、100社以上の候補から特に合う企業を厳選しています。</p>
+                <p className="mt-2 text-xs text-slate-500">{aiInsights?.summary || 'AI推薦理由を生成中...'}</p>
               </div>
               <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
                 {showOtherCompanies ? '6〜20位候補を閉じる' : 'その他の候補企業を見る'}
               </button>
             </div>
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              {result.recommendedCompanies.map((company, index) => (
+              {recommendedCompanies.map((company, index) => (
                 <CompanyCard key={company.name} company={company} rank={index + 1} onDetail={openModal} />
               ))}
             </div>
@@ -179,7 +234,7 @@ export default function Result() {
             )}
           </div>
 
-          <CompanyModal open={!!openCompany} onClose={closeModal} company={openCompany} />
+          <CompanyModal open={!!selectedCompany} onClose={closeModal} company={selectedCompany} />
           <MarketValueModal open={openMarket} onClose={() => setOpenMarket(false)} form={form} result={result} />
 
           <section className="mt-10 rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
