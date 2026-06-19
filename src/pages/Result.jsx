@@ -210,12 +210,6 @@ export default function Result() {
                 <h2 className="mt-3 text-2xl font-semibold text-slate-950">上位5社の企業候補</h2>
                 <p className="mt-2 text-sm text-slate-600">表示は上位5社までに絞り、100社以上の候補から特に合う企業を厳選しています。</p>
                 <p className="mt-2 text-xs text-slate-500">{aiLoading ? 'AI分析中...' : aiError || aiInsights?.aiSummary || aiInsights?.summary || 'AI分析中...'}</p>
-                {!aiLoading && !aiError && aiInsights?.debugSource && (
-                  <p className="mt-1 text-[11px] text-slate-400">debugSource: {aiInsights.debugSource}</p>
-                )}
-                {!aiLoading && !aiError && aiInsights?.debugVersion && (
-                  <p className="mt-1 text-[11px] text-slate-400">debugVersion: {aiInsights.debugVersion}</p>
-                )}
               </div>
               <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
                 {showOtherCompanies ? '6〜20位候補を閉じる' : 'その他の候補企業を見る'}
@@ -256,11 +250,16 @@ export default function Result() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500">AI分析サマリー</p>
-                <p className="mt-1 text-[11px] text-slate-400">frontendDebugVersion: 2026-06-19-frontend-v1</p>
-                <p className="mt-1 text-[11px] text-slate-400">aiAnalysis.debugVersion: {aiInsights?.debugVersion || '-'}</p>
-                <p className="mt-1 text-[11px] text-slate-400">aiAnalysis.debugSource: {aiInsights?.debugSource || '-'}</p>
-                <p className="mt-1 text-[11px] text-slate-400">aiAnalysis.fallbackReason: {aiInsights?.fallbackReason || '-'}</p>
                 <p className="mt-2 text-sm text-slate-600">Lambda Function から取得したAI分析結果を表示します。</p>
+                <details className="mt-2 rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-2 text-[11px] text-slate-500">
+                  <summary className="cursor-pointer select-none font-medium text-slate-500">開発用デバッグ情報</summary>
+                  <div className="mt-2 space-y-1 text-[11px] text-slate-500">
+                    <p>frontendDebugVersion: 2026-06-19-frontend-v1</p>
+                    <p>aiAnalysis.debugVersion: {aiInsights?.debugVersion || '-'}</p>
+                    <p>aiAnalysis.debugSource: {aiInsights?.debugSource || '-'}</p>
+                    <p>aiAnalysis.fallbackReason: {aiInsights?.fallbackReason || '-'}</p>
+                  </div>
+                </details>
               </div>
             </div>
 

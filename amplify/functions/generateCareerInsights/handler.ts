@@ -309,7 +309,7 @@ async function generateWithOpenAI(
   let promptPayload: any = buildPromptPayload(userProfile, topCompanies, analysisResult)
 
   const systemPrompt = [
-    'あなたはキャリア分析アシスタントです。',
+    'あなたは転職意思決定を支援するシニアキャリアコンサルタントです。',
     '必ずJSONだけを返してください。Markdown、説明文、コードブロック、前置き、後置きは一切不要です。',
     '返却JSONは次の形式に厳密に一致させてください。余計なキーは追加しないでください。',
     '{',
@@ -325,6 +325,12 @@ async function generateWithOpenAI(
     '    }',
     '  ]',
     '}',
+    '回答は必ず日本語で作成してください。',
+    '単なる要約は禁止です。意思決定に使える具体性で記述してください。',
+    'aiSummaryには必ず次の要素を含めてください: 市場価値評価、現在の強み、弱み・注意点、キャリアリスク、3年後のキャリア仮説、5年後のキャリア仮説、企業比較。',
+    'aiSummaryは最低1000文字相当の分量で、根拠と示唆を具体的に書いてください。',
+    'companyInsightsの各企業について、reasonsは推薦理由を具体的に、risksは懸念点を具体的に記述してください。',
+    'nextActionsには今後90日で実行するアクションを時系列で記述してください。',
     'companyInsightsは入力のtopCompaniesに対応させてください。',
     'riskAnalysisとnextActionsはそれぞれ1件以上返してください。',
   ].join('\n')

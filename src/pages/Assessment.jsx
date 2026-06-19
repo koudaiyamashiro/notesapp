@@ -23,6 +23,8 @@ function filterOptions(options, query) {
   return options.filter((item) => item.toLowerCase().includes(keyword))
 }
 
+const AGE_OPTIONS = Array.from({ length: 65 - 18 + 1 }, (_, index) => 18 + index)
+
 const ROLE_OPTIONS = [
   '営業',
   'マーケティング',
@@ -41,23 +43,68 @@ const ROLE_OPTIONS = [
 
 const LEVEL_OPTIONS = ['メンバー', '主任', '係長', '課長', '部長', '執行役員', '経営層']
 
+const COMMON_STRENGTH_OPTIONS = [
+  '課題整理',
+  '要件定義',
+  '顧客折衝',
+  '関係者調整',
+  'プロジェクト推進',
+  'データ分析',
+  '業務改善',
+  '戦略立案',
+  '企画立案',
+  '施策実行',
+  '新規開拓',
+  '既存顧客深耕',
+  'マネジメント',
+  'チームリード',
+  'プロダクト企画',
+  'マーケティング戦略',
+  '広告運用',
+  'CRM/MA活用',
+  '採用/組織開発',
+  '財務/数値管理',
+  'AI/デジタル活用',
+  'その他',
+]
+
 const STRENGTH_OPTIONS = {
-  営業: ['新規開拓', '提案営業', '既存深耕', '顧客折衝', 'プレゼン', '商談設計', 'クロージング', '営業企画', 'その他'],
-  マーケティング: ['SEO', 'SNS運用', '広告運用', 'CRM', 'MA運用', 'コンテンツ企画', 'ブランド戦略', 'データ分析', 'グロース施策', 'その他'],
-  エンジニア: ['フロントエンド', 'バックエンド', 'AWS', 'AI開発', 'データ基盤', 'SRE', '要件定義', 'アーキテクチャ設計', 'その他'],
-  'ITコンサル': ['課題整理', '要件定義', '業務設計', '資料作成', 'PMO', 'ファシリテーション', 'データ分析', '経営企画支援', 'その他'],
-  '戦略コンサル': ['課題整理', '要件定義', '業務設計', '資料作成', 'PMO', 'ファシリテーション', 'データ分析', '経営企画支援', 'その他'],
-  PM: ['プロダクト企画', '要件定義', 'ロードマップ策定', 'ユーザーリサーチ', 'データ分析', 'チームマネジメント', 'その他'],
-  BizDev: ['事業企画', '営業支援', '提携営業', 'マーケット分析', 'データ分析', 'その他'],
-  人事: ['採用', '育成', '評価制度', '組織開発', '労務', 'HRBP', 'その他'],
-  経理: ['決算', '管理会計', '予算管理', '財務分析', '内部統制', '資金繰り', 'その他'],
-  事業企画: ['事業企画', '経営企画', '新規事業', 'KPI設計', '市場分析', 'プロジェクト推進', 'その他'],
-  カスタマーサクセス: ['オンボーディング', '顧客支援', '解約防止', 'アップセル', 'ヘルススコア分析', 'その他'],
-  データアナリスト: ['SQL', 'データ分析', 'ダッシュボード作成', 'Python/R', 'A/Bテスト', 'ビジネスインサイト', 'その他'],
-  その他: ['課題解決', 'コミュニケーション', 'マネジメント', 'データ分析', '企画力', '実行力', 'その他'],
+  営業: ['新規開拓', '既存顧客深耕', '顧客折衝', '関係者調整', '提案設計', '施策実行', '数値管理', 'チームリード', ...COMMON_STRENGTH_OPTIONS],
+  マーケティング: ['マーケティング戦略', '広告運用', 'CRM/MA活用', 'データ分析', '施策実行', '企画立案', 'プロジェクト推進', ...COMMON_STRENGTH_OPTIONS],
+  エンジニア: ['要件定義', '課題整理', 'AI/デジタル活用', 'プロジェクト推進', '業務改善', 'データ分析', 'チームリード', ...COMMON_STRENGTH_OPTIONS],
+  'ITコンサル': ['課題整理', '要件定義', '関係者調整', 'プロジェクト推進', '戦略立案', '業務改善', 'データ分析', ...COMMON_STRENGTH_OPTIONS],
+  '戦略コンサル': ['戦略立案', '課題整理', '要件定義', '企画立案', 'データ分析', '関係者調整', ...COMMON_STRENGTH_OPTIONS],
+  PM: ['プロダクト企画', '要件定義', 'プロジェクト推進', '関係者調整', 'データ分析', 'チームリード', ...COMMON_STRENGTH_OPTIONS],
+  BizDev: ['戦略立案', '企画立案', '新規開拓', '顧客折衝', '関係者調整', '施策実行', ...COMMON_STRENGTH_OPTIONS],
+  人事: ['採用/組織開発', '関係者調整', '企画立案', '施策実行', 'データ分析', 'マネジメント', ...COMMON_STRENGTH_OPTIONS],
+  経理: ['財務/数値管理', '業務改善', 'データ分析', '関係者調整', '課題整理', ...COMMON_STRENGTH_OPTIONS],
+  事業企画: ['戦略立案', '企画立案', '課題整理', 'プロジェクト推進', 'データ分析', '関係者調整', ...COMMON_STRENGTH_OPTIONS],
+  カスタマーサクセス: ['顧客折衝', '関係者調整', '業務改善', '施策実行', 'データ分析', ...COMMON_STRENGTH_OPTIONS],
+  データアナリスト: ['データ分析', '課題整理', '要件定義', '業務改善', 'AI/デジタル活用', ...COMMON_STRENGTH_OPTIONS],
+  その他: COMMON_STRENGTH_OPTIONS,
 }
 
-const WEAKNESS_OPTIONS = ['単純作業', '細かい事務作業', '長時間会議', '数字管理', '顧客折衝', '資料作成', 'コーディング', 'マネジメント', '新規開拓', '調整業務', 'その他']
+const WEAKNESS_OPTIONS = [
+  '曖昧な要件を自分で整理すること',
+  '関係者調整が多い環境',
+  '数値責任を強く求められる環境',
+  '新規開拓中心の営業活動',
+  '短期成果を強く求められる環境',
+  '高速な意思決定と変化対応',
+  '事業責任を持つこと',
+  'マネジメント業務',
+  '深い専門性を継続的に磨くこと',
+  '顧客折衝が多い業務',
+  '未経験領域を自走で学ぶこと',
+  '定量分析・データ活用',
+  '企画から実行まで一気通貫で担うこと',
+  'プレッシャーの高い環境',
+  '出社頻度が高い働き方',
+  '大企業的な調整文化',
+  'ベンチャー的な曖昧さ',
+  'グローバル/英語対応',
+  'その他',
+]
 
 const PURPOSE_OPTIONS = ['年収アップ', '市場価値向上', '裁量拡大', 'マネジメント経験', 'リモート勤務', 'ワークライフバランス', '専門性向上', '事業責任者', '起業準備', 'グローバル経験', 'その他']
 
@@ -82,7 +129,8 @@ export default function Assessment() {
   }
 
   const handleChange = (key) => (event) => {
-    const value = event.target.value
+    const rawValue = event.target.value
+    const value = key === 'age' && rawValue !== '' ? Number(rawValue) : rawValue
     if (key === 'role') {
       setForm({ ...form, role: value, strengths: [] })
     } else {
@@ -188,27 +236,28 @@ export default function Assessment() {
             ))}
           </div>
 
-          <form className="mt-8 grid gap-8" onSubmit={handleSubmit}>
+          <form className="mt-8 grid gap-6" onSubmit={handleSubmit}>
             {step === 0 && (
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
                   年齢
-                  <input
-                    type="number"
-                    min="18"
-                    max="70"
-                    value={form.age}
+                  <select
+                    value={form.age === '' ? '' : String(form.age)}
                     onChange={handleChange('age')}
-                    placeholder="例: 32"
-                    className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
-                  />
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="">選択してください</option>
+                    {AGE_OPTIONS.map((age) => (
+                      <option key={age} value={age}>{age}歳</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
                   現在の職種
                   <select
                     value={form.role}
                     onChange={handleChange('role')}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">選択してください</option>
                     {ROLE_OPTIONS.map((item) => (
@@ -221,7 +270,7 @@ export default function Assessment() {
                   <select
                     value={form.level}
                     onChange={handleChange('level')}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">選択してください</option>
                     {LEVEL_OPTIONS.map((item) => (
@@ -238,7 +287,7 @@ export default function Assessment() {
                     value={form.experience}
                     onChange={handleChange('experience')}
                     placeholder="例: 5"
-                    className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
@@ -246,7 +295,7 @@ export default function Assessment() {
                   <select
                     value={form.income}
                     onChange={handleChange('income')}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">選択してください</option>
                     <option value="200未満">200万円未満</option>
@@ -266,14 +315,12 @@ export default function Assessment() {
             )}
 
             {step === 1 && (
-              <div className="grid gap-8">
+              <div className="grid gap-5">
                 <MultiSelectTags
                   label="得意領域"
                   description="あなたが強みとして活かせる領域を選択してください"
-                  icon="💪"
-                  bgColor="bg-blue-50 border-blue-200"
                   selected={form.strengths}
-                  options={strengthOptions}
+                  options={Array.from(new Set(strengthOptions))}
                   onToggle={(item) => toggleChip('strengths', item)}
                   onCustomAdd={(val) => addCustomTag('strengths', val, () => {})}
                 />
@@ -281,8 +328,6 @@ export default function Assessment() {
                 <MultiSelectTags
                   label="苦手領域"
                   description="避けたい業務や負荷に感じやすい領域を選択してください"
-                  icon="⚠️"
-                  bgColor="bg-slate-100 border-slate-300"
                   selected={form.weaknesses}
                   options={WEAKNESS_OPTIONS}
                   onToggle={(item) => toggleChip('weaknesses', item)}
@@ -292,12 +337,10 @@ export default function Assessment() {
             )}
 
             {step === 2 && (
-              <div className="grid gap-8">
+              <div className="grid gap-5">
                 <MultiSelectTags
                   label="転職目的"
                   description="あなたが転職先に求める価値やゴールを複数選択してください"
-                  icon="🎯"
-                  bgColor="bg-purple-50 border-purple-200"
                   selected={form.purpose}
                   options={PURPOSE_OPTIONS}
                   onToggle={(item) => toggleChip('purpose', item)}
@@ -309,7 +352,7 @@ export default function Assessment() {
                   <select
                     value={form.workStyle}
                     onChange={handleChange('workStyle')}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">選択してください</option>
                     {WORK_STYLE_OPTIONS.map((item) => (
@@ -321,8 +364,6 @@ export default function Assessment() {
                 <MultiSelectTags
                   label="希望業界"
                   description="キャリアを築きたい業界を選んでください。複数選択できます。"
-                  icon="🏢"
-                  bgColor="bg-orange-50 border-orange-200"
                   selected={form.desiredIndustry}
                   options={INDUSTRY_OPTIONS}
                   onToggle={(item) => toggleChip('desiredIndustry', item)}
@@ -335,7 +376,7 @@ export default function Assessment() {
                     value={form.idealFuture}
                     onChange={handleChange('idealFuture')}
                     placeholder="例: 事業責任者として組織を牽引したい"
-                    className="min-h-[130px] rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
+                    className="min-h-[110px] rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
               </div>
