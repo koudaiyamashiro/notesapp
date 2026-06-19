@@ -20,7 +20,7 @@ type CareerInsightsResponse = {
   analysisSnapshot?: Record<string, unknown>
 }
 
-type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error'
+type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error' | 'openai_bad_request'
 
 type OpenAIError = Error & {
   code: OpenAIErrorCode
@@ -201,20 +201,19 @@ async function generateWithOpenAI(
     '返却JSONは次の形式に厳密に一致させてください。余計なキーは追加しないでください。',
     '{',
     '  "aiSummary": "string",',
-    '  "riskAnalysis": ["string", "string"],',
-    '  "nextActions": ["string", "string", "string"],',
+    '  "riskAnalysis": ["string"],',
+    '  "nextActions": ["string"],',
     '  "companyInsights": [',
     '    {',
     '      "companyName": "string",',
     '      "summary": "string",',
-    '      "reasons": ["string", "string"],',
+    '      "reasons": ["string"],',
     '      "risks": ["string"]',
     '    }',
-    '  ],',
-    '  "debugSource": "openai"',
+    '  ]',
     '}',
     'companyInsightsは入力のtopCompaniesに対応させてください。',
-    'riskAnalysisは2件以上、nextActionsは3件以上返してください。',
+    'riskAnalysisとnextActionsはそれぞれ1件以上返してください。',
   ].join('\n')
 
   const userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
@@ -237,6 +236,27 @@ async function generateWithOpenAI(
   })
 
   if (!openAIResponse.ok) {
+    const errorRaw = await openAIResponse.text()
+    let parsedError: any = null
+    try {
+      parsedError = errorRaw ? JSON.parse(errorRaw) : null
+    } catch {
+      parsedError = null
+    }
+
+    const errorInfo = parsedError?.error || {}
+    console.warn('generateCareerInsights OpenAI error response', {
+      status: openAIResponse.status,
+      errorMessage: String(errorInfo?.message || ''),
+      errorType: String(errorInfo?.type || ''),
+      errorCode: String(errorInfo?.code || ''),
+      errorParam: String(errorInfo?.param || ''),
+    })
+
+    if (openAIResponse.status === 400) {
+      throw createOpenAIError('openai_bad_request', 'OpenAI request failed with status 400', 'http_error')
+    }
+
     throw createOpenAIError('openai_error', `OpenAI request failed with status ${openAIResponse.status}`, 'http_error')
   }
 
@@ -348,7 +368,10 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
         }
       } catch (error) {
         const typedError = error as Partial<OpenAIError>
-        fallbackReason = typedError.code === 'parse_error' || typedError.code === 'invalid_response' ? typedError.code : 'openai_error'
+        fallbackReason =
+          typedError.code === 'parse_error' || typedError.code === 'invalid_response' || typedError.code === 'openai_bad_request'
+            ? typedError.code
+            : 'openai_error'
         fallbackResponseType = typeof typedError.responseType === 'string' ? typedError.responseType : 'unknown'
         console.warn('generateCareerInsights OpenAI call failed', {
           status: fallbackReason,
