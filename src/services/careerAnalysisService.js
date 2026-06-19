@@ -117,6 +117,76 @@ function mapIncomeRangeToValue(incomeRange) {
   return incomeMap[String(incomeRange) || ''] || 500
 }
 
+function buildProfileHighlights(form) {
+  const strengths = Array.isArray(form.strengths) ? form.strengths : []
+  const weaknesses = Array.isArray(form.weaknesses) ? form.weaknesses : []
+  const purpose = Array.isArray(form.purpose) ? form.purpose : [form.purpose]
+  const desiredIndustry = Array.isArray(form.desiredIndustry) ? form.desiredIndustry : []
+  const highlights = []
+
+  if (form.role) highlights.push(`現在の職種は${form.role}`)
+  if (form.level) highlights.push(`職位は${form.level}`)
+  if (String(form.experience || '').trim()) highlights.push(`経験年数は${form.experience}年`)
+  if (String(form.income || '').trim()) highlights.push(`年収レンジは${form.income}`)
+  if (strengths.length > 0) highlights.push(`得意領域は${strengths.slice(0, 2).join('、')}`)
+  if (weaknesses.length > 0) highlights.push(`苦手領域は${weaknesses.slice(0, 2).join('、')}`)
+  if (purpose.length > 0) highlights.push(`転職目的は${purpose.slice(0, 2).join('、')}`)
+  if (desiredIndustry.length > 0) highlights.push(`希望業界は${desiredIndustry.slice(0, 2).join('、')}`)
+  if (form.workStyle) highlights.push(`働き方は${form.workStyle}`)
+  if (form.idealFuture) highlights.push(`5年後は${form.idealFuture}`)
+
+  return highlights.slice(0, 8)
+}
+
+function buildCareerPathPreview(company) {
+  const annualPath = buildCareerPath(company)
+  return {
+    oneYear: annualPath[0] || '専門性を深める',
+    threeYear: annualPath[1] || 'リード経験を積む',
+    fiveYear: annualPath[2] || '事業責任を担う',
+  }
+}
+
+function buildComparisonNote(company, referenceCompany, fit, referenceFit) {
+  if (!referenceCompany) return []
+  const notes = []
+  if (fit.skillFit > referenceFit.skillFit) {
+    notes.push(`「${company.name}」は「${referenceCompany.name}」より、現在の職種や得意領域との親和性が高いです。`)
+  }
+  if (fit.workStyleFit > referenceFit.workStyleFit) {
+    notes.push('希望する働き方との一致度が高く、日々の負荷を合わせやすいです。')
+  }
+  if (fit.industryFit > referenceFit.industryFit) {
+    notes.push('希望業界との一致率が高く、キャリアの軸を崩さずに進めます。')
+  }
+  if (fit.salaryFit > referenceFit.salaryFit) {
+    notes.push('年収レンジもより近く、転職後の条件面で納得感が出やすいです。')
+  }
+  if (fit.careerGoalFit > referenceFit.careerGoalFit) {
+    notes.push('5年後の理想像に向けたキャリアのつながりが作りやすいです。')
+  }
+  return notes.slice(0, 3)
+}
+
+function buildConditionTags(form, company, fit) {
+  const conditions = []
+  const strengths = Array.isArray(form.strengths) ? form.strengths : []
+  const purpose = Array.isArray(form.purpose) ? form.purpose : [form.purpose]
+
+  if (form.role) conditions.push(form.role)
+  if (strengths[0]) conditions.push(strengths[0])
+  if (purpose.some((item) => includesIn(item, '年収'))) conditions.push('年収アップ志向')
+  if (purpose.some((item) => includesIn(item, '裁量'))) conditions.push('裁量重視')
+  if (purpose.some((item) => includesIn(item, '成長'))) conditions.push('成長志向')
+  if (String(form.workStyle || '').includes('リモート')) conditions.push('リモート志向')
+  if (String(form.workStyle || '').includes('ハイブリッド')) conditions.push('ハイブリッド志向')
+  if (String(form.idealFuture || '').includes('リーダー') || String(form.idealFuture || '').includes('管理職')) conditions.push('リーダー志向')
+  if (company.industry) conditions.push(`${company.industry}志向`)
+  if (fit.skillFit >= 80 && strengths.length > 0) conditions.push('スキル適合度高')
+
+  return Array.from(new Set(conditions)).slice(0, 6)
+}
+
 function buildRoleRecommendations(form, strengths) {
   const role = normalizeText(form.role)
   const preferences = [
@@ -139,22 +209,27 @@ function buildCompanyFit(form, company) {
   const workStyle = String(form.workStyle || '')
   const idealFuture = String(form.idealFuture || '')
   const experience = Number(form.experience) || 0
+  const level = normalizeText(form.level)
   const userIncome = mapIncomeRangeToValue(form.income)
   const role = normalizeText(form.role)
 
   const roleMatch = company.recommendedRoles.some((item) => normalizeText(item).includes(role) || role.includes(normalizeText(item)))
-  const strengthMatches = countMatches(strengths, company.strengths.concat(company.matchKeywords))
+  const levelMatch = ['リーダー', '主任', '係長', '課長', '部長', 'マネージャ', '経営'].some((item) => level.includes(item))
+  const skillOverlap = countMatches(strengths, company.strengths.concat(company.matchKeywords))
+  const weaknessOverlap = countMatches(weaknesses, company.risks.concat(company.notSuitableFor))
   const industryMatches = desiredIndustry.reduce((sum, item) => {
     const normalized = normalizeText(item)
     return sum + (normalizeText(company.industry).includes(normalized) || company.matchKeywords.some((keyword) => normalizeText(keyword).includes(normalized)) ? 1 : 0)
   }, 0)
   const targetIndustry = desiredIndustry.find((item) => normalizeText(company.industry).includes(normalizeText(item)) || company.matchKeywords.some((keyword) => normalizeText(keyword).includes(normalizeText(item))))
 
-  let skillFit = 55 + Math.min(28, strengthMatches * 10) + (roleMatch ? 10 : 0) + Math.min(8, experience)
-  if (company.ownershipScore >= 80 && normalizeText(form.level).includes('マネージャ')) skillFit += 4
-  skillFit = clamp(Math.round(skillFit), 40, 100)
+  let skillFit = 46 + Math.min(24, skillOverlap * 9) + (roleMatch ? 10 : 0) + Math.min(8, experience)
+  if (levelMatch) skillFit += 4
+  if (weaknessOverlap > 0) skillFit -= Math.min(10, weaknessOverlap * 4)
+  if (company.ownershipScore >= 80 && (level.includes('マネージャ') || level.includes('リーダー'))) skillFit += 4
+  skillFit = clamp(Math.round(skillFit), 35, 100)
 
-  let industryFit = 58 + Math.min(30, industryMatches * 12)
+  let industryFit = 54 + Math.min(30, industryMatches * 12)
   if (!desiredIndustry.length) industryFit = 70
   if (targetIndustry) industryFit = clamp(Math.round(industryFit + 10), 55, 100)
   industryFit = clamp(industryFit, 40, 100)
@@ -174,7 +249,7 @@ function buildCompanyFit(form, company) {
   }
   workStyleFit = clamp(Math.round(workStyleFit), 30, 100)
 
-  let careerGoalFit = 50
+  let careerGoalFit = 46
   if (includesIn(purpose, '裁量')) {
     careerGoalFit += company.ownershipScore >= 70 ? 18 : -8
   }
@@ -201,8 +276,8 @@ function buildCompanyFit(form, company) {
   const salaryFit = fitSalary(company, userIncome)
 
   const matchScore = Math.round(
-    skillFit * 0.28 +
-    industryFit * 0.24 +
+    skillFit * 0.3 +
+    industryFit * 0.22 +
     workStyleFit * 0.18 +
     careerGoalFit * 0.18 +
     salaryFit * 0.12
@@ -217,7 +292,8 @@ function buildCompanyFit(form, company) {
     matchScore,
     roleMatch,
     targetIndustry,
-    strengthMatches,
+    strengthMatches: skillOverlap,
+    weaknessOverlap,
   }
 }
 
@@ -231,7 +307,7 @@ function fitSalary(company, userIncome) {
 }
 
 function buildCompanyCandidates(form) {
-  return companyCandidates
+  const rankedCandidates = companyCandidates
     .map((company) => {
       const fit = buildCompanyFit(form, company)
       const conditions = buildMatchedConditions(form, company)
@@ -241,18 +317,39 @@ function buildCompanyCandidates(form) {
       return {
         ...company,
         reason: company.description,
-        recommendation: recommendationReasons.length > 0 ? recommendationReasons.slice(0, 2).join('。') + '。' : company.description,
+        recommendation: recommendationReasons.reasonCards?.[0]?.detail || company.description,
         recommendationReasons,
-        caution: concernPoints.length > 0 ? concernPoints.join(' ') : buildCaution(company),
+        caution: concernPoints,
         concernPoints,
         matchedConditions: conditions.length > 0 ? conditions : ['年収アップ', 'キャリア成長'],
+        conditionTags: buildConditionTags(form, company, fit),
         scoreBreakdown,
         overallFit: fit.matchScore,
+        fit,
         careerPath: buildCareerPath(company),
+        careerPathPreview: buildCareerPathPreview(company),
         salaryRange: buildSalaryRange(company),
+        profileHighlights: buildProfileHighlights(form),
       }
     })
     .sort((a, b) => b.overallFit - a.overallFit)
+
+  return rankedCandidates.map((company, index, allCompanies) => {
+    const referenceCompany = allCompanies[index + 1] || allCompanies.find((item) => item.name !== company.name) || null
+    const referenceFit = referenceCompany?.fit || company.fit
+    const comparisonReasons = buildComparisonNote(company, referenceCompany, company.fit, referenceFit)
+    const recommendationReasons = company.recommendationReasons || {}
+    return {
+      ...company,
+      comparisonTarget: referenceCompany?.name || '',
+      comparisonReasons,
+      recommendationReasons: {
+        ...recommendationReasons,
+        comparisonTarget: referenceCompany?.name || '',
+        comparisonReasons,
+      },
+    }
+  })
 }
 
 function buildComparison(candidates) {
@@ -353,42 +450,104 @@ function buildMatchedConditions(form, company) {
 }
 
 function buildRecommendationReasons(form, company, fit) {
-  const reasons = []
   const strengths = Array.isArray(form.strengths) ? form.strengths : []
   const purpose = Array.isArray(form.purpose) ? form.purpose : [form.purpose]
   const workStyle = String(form.workStyle || '')
   const idealFuture = String(form.idealFuture || '')
+  const reasonCards = []
 
-  if (fit.roleMatch && form.role) {
-    reasons.push(`現在の職種「${form.role}」との親和性が高い`)
+  if (form.role) {
+    reasonCards.push({
+      title: '経験の活用',
+      detail: `現在の職種「${form.role}」の経験をそのまま活かしやすいです。`,
+    })
   }
 
   const strengthMatch = strengths.find((item) => company.strengths.some((keyword) => normalizeText(keyword).includes(normalizeText(item))) || company.matchKeywords.some((keyword) => normalizeText(keyword).includes(normalizeText(item))))
   if (strengthMatch) {
-    reasons.push(`得意領域の「${strengthMatch}」が活かせる`)
+    reasonCards.push({
+      title: '得意領域との一致',
+      detail: `得意領域の「${strengthMatch}」が企業の強みや事業で直接活きます。`,
+    })
   }
 
   if (fit.targetIndustry) {
-    reasons.push(`希望業界の「${fit.targetIndustry}」と一致`)
+    reasonCards.push({
+      title: '業界の一致',
+      detail: `希望業界の「${fit.targetIndustry}」と一致し、キャリアの軸を崩さずに進めます。`,
+    })
   }
 
   if (purpose.some((item) => includesIn(item, '裁量')) && company.ownershipScore >= 70) {
-    reasons.push('転職目的の「裁量拡大」と企業文化が一致')
+    reasonCards.push({
+      title: '目的の一致',
+      detail: '裁量を増やしたいという転職目的と、任される範囲の広さが一致しています。',
+    })
   }
 
-  if (fit.salaryFit >= 80) {
-    reasons.push('年収レンジが希望と近い')
+  if (fit.salaryFit >= 70) {
+    reasonCards.push({
+      title: '年収条件の納得感',
+      detail: '希望年収レンジと企業の給与水準に大きな乖離がなく、条件面でも検討しやすいです。',
+    })
   }
 
-  if (String(idealFuture).length > 0 && (includesIn(idealFuture, 'リーダー') || includesIn(idealFuture, '管理職'))) {
-    reasons.push('5年後の理想像に沿うキャリアパスを描きやすい')
+  if (String(idealFuture).length > 0 && (includesIn(idealFuture, 'リーダー') || includesIn(idealFuture, '管理職') || includesIn(idealFuture, '責任者'))) {
+    reasonCards.push({
+      title: 'キャリア目標との接続',
+      detail: '5年後の理想像に向けて、1年後から段階的に役割を広げやすいです。',
+    })
   }
 
-  if (reasons.length === 0) {
-    reasons.push(`${company.description}の環境でキャリアを前進できます`)
+  if (fit.workStyleFit >= 75) {
+    reasonCards.push({
+      title: '働き方の一致',
+      detail: `希望する働き方と、${company.name}のリモート・出社バランスが合っています。`,
+    })
   }
 
-  return Array.from(new Set(reasons)).slice(0, 5)
+  if (reasonCards.length === 0) {
+    reasonCards.push({
+      title: '総合評価',
+      detail: `${company.description}の特徴が、あなたのキャリア志向と噛み合っています。`,
+    })
+  }
+
+  if (reasonCards.length < 3) {
+    if (fit.skillFit >= 75) {
+      reasonCards.push({
+        title: 'スキル適合度',
+        detail: '企業が求めるスキルと、あなたの強みの重なりが十分にあります。',
+      })
+    }
+    if (fit.careerGoalFit >= 75) {
+      reasonCards.push({
+        title: 'キャリア接続',
+        detail: '5年後の理想像に向けて、次の一歩を積みやすい環境です。',
+      })
+    }
+    if (fit.salaryFit >= 75) {
+      reasonCards.push({
+        title: '条件の納得感',
+        detail: '年収レンジが近く、転職後の条件面でも比較しやすいです。',
+      })
+    }
+  }
+
+  const seen = new Set()
+  const unique = reasonCards.filter((item) => {
+    if (seen.has(item.title)) return false
+    seen.add(item.title)
+    return true
+  })
+
+  return {
+    reasonCards: unique.slice(0, 5),
+    shortReasons: unique.slice(0, 5).map((item) => item.title),
+    profileLead: buildProfileHighlights(form),
+    comparisonTarget: '',
+    comparisonReasons: [],
+  }
 }
 
 function buildCaution(company) {
@@ -414,25 +573,32 @@ function buildConcernPoints(form, company, fit) {
   const weaknesses = Array.isArray(form.weaknesses) ? form.weaknesses : []
 
   if (purpose.some((item) => includesIn(item, '安定')) && company.stabilityScore < 75) {
-    concerns.push('安定志向の方にはリスクがある')
+    concerns.push('変化が大きく、安定志向の方には注意が必要です。')
   }
   if (workStyle.includes('ワークライフ') && company.workLifeBalanceScore < 60) {
-    concerns.push('ワークライフバランス重視の場合、注意が必要です')
+    concerns.push('ワークライフバランス重視の場合、負荷が高く感じる可能性があります。')
   }
   if (purpose.some((item) => includesIn(item, '年収')) && fit.salaryFit < 70) {
-    concerns.push('年収アップ重視ではレンジがやや不足する可能性があります')
+    concerns.push('年収アップ重視では、希望レンジとのギャップが残る可能性があります。')
   }
   if (purpose.some((item) => includesIn(item, '裁量')) && company.ownershipScore < 70) {
-    concerns.push('裁量拡大傾向の方には物足りない可能性があります')
+    concerns.push('裁量拡大を求める場合、任せられる範囲がやや限定的です。')
   }
   if (weaknesses.some((item) => includesIn(item, '長時間')) && company.workLifeBalanceScore < 60) {
-    concerns.push('長時間労働を避けたい方には負担になる可能性があります')
+    concerns.push('長時間労働を避けたい方には、稼働量が負担になる可能性があります。')
   }
   if (weaknesses.some((item) => includesIn(item, '変化')) && company.growthScore > 88) {
-    concerns.push('変化が苦手な方には社風がやや早い可能性があります')
+    concerns.push('変化が苦手な方には、社風のスピード感が合わない可能性があります。')
   }
   if (workStyle.includes('リモート') && company.remoteScore < 55) {
-    concerns.push('リモート志向に対して、やや出社寄りの傾向があります')
+    concerns.push('リモート志向に対して、出社比率が高めです。')
+  }
+
+  if (concerns.length < 2) {
+    concerns.push(buildCaution(company))
+  }
+  if (concerns.length < 2) {
+    concerns.push('成果期待が高く、受け身だと手応えが弱くなる可能性があります。')
   }
 
   return Array.from(new Set(concerns)).slice(0, 4)
@@ -440,11 +606,11 @@ function buildConcernPoints(form, company, fit) {
 
 function buildScoreBreakdown(form, company, fit) {
   return [
-    { label: 'skillFit', value: fit.skillFit },
-    { label: 'industryFit', value: fit.industryFit },
-    { label: 'workStyleFit', value: fit.workStyleFit },
-    { label: 'careerGoalFit', value: fit.careerGoalFit },
-    { label: 'salaryFit', value: fit.salaryFit },
+    { label: 'スキル適合度', value: fit.skillFit },
+    { label: '業界適合度', value: fit.industryFit },
+    { label: '働き方適合度', value: fit.workStyleFit },
+    { label: 'キャリア適合度', value: fit.careerGoalFit },
+    { label: '年収適合度', value: fit.salaryFit },
   ]
 }
 
