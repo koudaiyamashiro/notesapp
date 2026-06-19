@@ -3,36 +3,37 @@ import PricingCard from './PricingCard.jsx'
 const pricingPlans = [
   {
     title: 'Free',
-    price: '¥0',
-    description: 'まずは現在地を知る',
-    features: ['簡易キャリア診断', '市場価値スコア（概算）'],
+    price: '0円',
+    description: 'まずはトライアル。今の自分を見える化。',
+    features: ['市場価値スコア（簡易）', 'おすすめ業界診断', '適職診断'],
   },
   {
     title: 'Standard',
-    price: '¥980',
-    description: '自己分析を深める',
-    features: ['市場価値スコア（詳細）', '向いている業界診断', '職種診断'],
+    price: '550円/月',
+    description: 'キャリアを具体化したい方に。',
+    features: ['市場価値スコア（詳細）', 'おすすめ企業TOP10', '企業比較', 'AIキャリア相談（月5回）'],
+    recommended: true,
   },
   {
     title: 'Pro',
-    price: '¥2,980',
-    description: '戦略を実行に移す',
-    features: ['企業比較レポート', 'キャリアロードマップ', '職務経歴書 自動生成', 'AIキャリア相談 無制限'],
+    price: '1,498円/月',
+    description: '戦略を実行まで支援するフル機能。',
+    features: ['全機能利用可能', 'キャリアロードマップ', 'AIキャリア相談無制限', '職務経歴書作成', '面接対策', '転職戦略レポート'],
     featured: true,
   },
 ]
 
 export default function PricingSection() {
   return (
-    <section id="pricing" className="bg-slate-50 py-24">
+    <section id="pricing" className="bg-slate-950 py-24 text-slate-100">
       <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-10">
         <div className="max-w-3xl">
-          <p className="text-sm uppercase tracking-[0.28em] text-sky-500">Pricing</p>
-          <h2 className="mt-6 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            現在地を知るのは、無料から。
+          <p className="text-sm uppercase tracking-[0.28em] text-sky-400">Pricing</p>
+          <h2 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">
+            転職前に、戦略をつくるサブスク。
           </h2>
-          <p className="mt-5 text-lg leading-8 text-slate-600">
-            戦略を深めたくなったら、必要な機能だけアップグレード。いつでも変更できます。
+          <p className="mt-5 text-lg leading-8 text-slate-300">
+            まずは無料で現状を把握し、必要に応じて機能をアップグレードしていくモデルです。
           </p>
         </div>
 

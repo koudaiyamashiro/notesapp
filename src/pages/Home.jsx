@@ -6,6 +6,7 @@ import ComparisonSection from '../components/ComparisonSection.jsx'
 import FlowSection from '../components/FlowSection.jsx'
 import PricingSection from '../components/PricingSection.jsx'
 import Footer from '../components/Footer.jsx'
+import CTASection from '../components/CTASection.jsx'
 
 export default function Home() {
   return (
@@ -18,6 +19,7 @@ export default function Home() {
         <ComparisonSection />
         <FlowSection />
         <PricingSection />
+        <CTASection />
       </main>
       <Footer />
     </div>
