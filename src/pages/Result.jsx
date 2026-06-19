@@ -1,8 +1,13 @@
 import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer } from 'recharts'
+import { Suspense, lazy } from 'react'
 import Header from '../components/Header.jsx'
 import Roadmap from '../components/Roadmap.jsx'
+import CompanyModal from '../components/CompanyModal.jsx'
+import MarketValueModal from '../components/MarketValueModal.jsx'
+const RadarWrapper = lazy(() => import('../components/RadarWrapper.jsx'))
+const StarGrid = lazy(() => import('../components/StarGrid.jsx'))
+import { useState } from 'react'
 
 const DEFAULT_FORM = {
   age: '32',
@@ -57,57 +62,102 @@ function scoreForIndustry(desiredIndustries, target) {
   return hasTarget ? 92 : 78
 }
 
+function includesIn(field, substr) {
+  if (Array.isArray(field)) return field.some((v) => normalizeText(v).includes(normalizeText(substr)))
+  return normalizeText(String(field)).includes(normalizeText(substr))
+}
+
 function buildRadarData(form) {
   const role = normalizeText(form.role)
   const level = normalizeText(form.level)
-  const hasData = form.strengths.includes('データ分析') || form.strengths.includes('AI開発')
-  const hasCommunicate = form.strengths.some((option) => ['プレゼン', '顧客折衝', 'ファシリテーション'].includes(option))
-  const hasManage = ['リーダー', 'マネージャー', '責任者・役員クラス'].includes(level)
+  const strengths = Array.isArray(form.strengths) ? form.strengths : []
+  const hasData = strengths.some((s) => normalizeText(s).includes('データ') || normalizeText(s).includes('ai'))
+  const hasCommunicate = strengths.some((option) => ['プレゼン', '顧客折衝', 'ファシリテーション'].some((k) => normalizeText(option).includes(normalizeText(k))))
+  const hasManage = ['主任', '係長', '課長', '部長', '執行役員', '経営層'].includes(form.level)
   return [
-    { subject: '専門性', A: 60 + (role.includes('エンジニア') ? 18 : role.includes('マーケティング') ? 12 : 8) + (hasData ? 6 : 0), fullMark: 100 },
-    { subject: '推進力', A: 58 + (form.strengths.includes('新規開拓') ? 12 : form.purpose.includes('裁量') ? 8 : 4), fullMark: 100 },
-    { subject: '分析力', A: 54 + (hasData ? 18 : form.strengths.includes('資料作成') ? 8 : 4), fullMark: 100 },
-    { subject: 'コミュニケーション', A: 56 + (hasCommunicate ? 16 : 6), fullMark: 100 },
-    { subject: 'マネジメント', A: 50 + (hasManage ? 20 : 6) + (form.level === 'マネージャー' ? 6 : 0), fullMark: 100 },
-    { subject: '成長意欲', A: 62 + Math.min(Number(form.experience) * 2, 18) + (form.purpose.includes('成長') ? 8 : 0), fullMark: 100 },
+    { subject: '専門性', A: Math.min(100, 60 + (role.includes('エンジニア') ? 18 : role.includes('マーケティング') ? 12 : 8) + (hasData ? 6 : 0)), fullMark: 100 },
+    { subject: '推進力', A: Math.min(100, 58 + (strengths.includes('新規開拓') ? 12 : includesIn(form.purpose, '裁量') ? 8 : 4)), fullMark: 100 },
+    { subject: '分析力', A: Math.min(100, 54 + (hasData ? 18 : strengths.includes('資料作成') ? 8 : 4)), fullMark: 100 },
+    { subject: 'コミュニケーション', A: Math.min(100, 56 + (hasCommunicate ? 16 : 6)), fullMark: 100 },
+    { subject: 'マネジメント', A: Math.min(100, 50 + (hasManage ? 20 : 6) + (form.level === 'マネージャー' ? 6 : 0)), fullMark: 100 },
+    { subject: '成長意欲', A: Math.min(100, 62 + Math.min(Number(form.experience) * 2, 18) + (includesIn(form.purpose, '成長') ? 8 : 0)), fullMark: 100 },
   ]
 }
 
 function buildResult(form) {
   const experience = Number(form.experience) || 0
-  const income = Number(form.income) || 500
-  const role = normalizeText(form.role)
-  const level = normalizeText(form.level)
-  const desire = form.desiredIndustry || []
-  const hasAI = desire.some((item) => normalizeText(item).includes('ai'))
-  const hasSaaS = desire.some((item) => normalizeText(item).includes('saas'))
+  const incomeRaw = String(form.income || '')
+  const desired = Array.isArray(form.desiredIndustry) ? form.desiredIndustry : []
+  const strengths = Array.isArray(form.strengths) ? form.strengths : []
 
-  let score = 50 + Math.min(experience * 3, 24)
-  score += income >= 1000 ? 10 : income >= 800 ? 7 : income >= 600 ? 4 : 2
-  score += level === '責任者・役員クラス' ? 8 : level === 'マネージャー' ? 5 : 3
-  score += form.strengths.length >= 3 ? 6 : 3
-  score = Math.min(98, score)
+  // map income range to approximate numeric value (万円)
+  const incomeMap = {
+    '200未満': 150,
+    '200-300': 250,
+    '300-400': 350,
+    '400-500': 450,
+    '500-600': 550,
+    '600-700': 650,
+    '700-800': 750,
+    '800-900': 850,
+    '900-1000': 950,
+    '1000-1200': 1100,
+    '1200以上': 1300,
+  }
+  const income = incomeMap[incomeRaw] || 500
+
+  // Sub-scores (0-100)
+  // 1) skillFit (40%) - based on strengths count, experience and role match
+  let skillFit = 50 + Math.min(30, strengths.length * 6) + Math.min(10, experience)
+  if (normalizeText(form.role).includes('エンジニア') && strengths.some((s) => normalizeText(s).includes('データ'))) skillFit += 6
+  skillFit = Math.min(100, Math.round(skillFit))
+
+  // 2) orientationFit (30%) - based on purpose alignment and idealFuture
+  let orientationFit = 40
+  if (Array.isArray(form.purpose)) {
+    orientationFit += Math.min(40, form.purpose.length * 6)
+    if (includesIn(form.purpose, '年収') || includesIn(form.purpose, '年収アップ') || includesIn(form.purpose, '市場価値')) orientationFit += 4
+  } else {
+    orientationFit += includesIn(form.purpose || '', '年収') ? 6 : 0
+  }
+  orientationFit += String(form.idealFuture || '').length > 20 ? 6 : 0
+  orientationFit = Math.min(100, Math.round(orientationFit))
+
+  // 3) marketValue (20%) - based on current income and industry demand
+  let marketValue = Math.min(100, Math.round((income / 1300) * 100))
+  if (desired.some((d) => normalizeText(d).includes('saas') || normalizeText(d).includes('ai'))) marketValue = Math.min(100, marketValue + 8)
+
+  // 4) workStyleFit (10%) - simple heuristic
+  let workFit = 50
+  if (String(form.workStyle || '').includes('フルリモート') && desired.some((d) => normalizeText(d).includes('saas') || normalizeText(d).includes('it'))) workFit = 85
+  if (String(form.workStyle || '').includes('ハイブリッド')) workFit = 72
+  workFit = Math.min(100, Math.round(workFit))
+
+  const finalScore = Math.round(skillFit * 0.4 + orientationFit * 0.3 + marketValue * 0.2 + workFit * 0.1)
 
   const industries = Object.values(INDUSTRY_LABELS)
     .filter((industry) => industry !== 'その他')
     .map((industry) => ({
       label: industry,
-      score: scoreForIndustry(desire, industry),
+      score: scoreForIndustry(desired, industry),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 5)
 
+  // role recommendations (kept simple and deterministic)
   const rolePreferences = [
-    { role: 'SaaS営業', score: role.includes('営業') ? 92 : 72 },
-    { role: 'BizDev', score: role.includes('営業') || role.includes('マーケティング') ? 88 : 68 },
-    { role: 'カスタマーサクセス', score: role.includes('営業') ? 86 : 68 },
-    { role: '事業企画', score: role.includes('企画') ? 92 : role.includes('コンサルタント') ? 86 : 70 },
-    { role: 'データアナリスト', score: role.includes('マーケティング') || role.includes('エンジニア') ? 90 : 72 },
-    { role: 'プロジェクトマネージャー', score: role.includes('コンサルタント') || role.includes('エンジニア') ? 88 : 70 },
-    { role: 'ITコンサルタント', score: role.includes('コンサルタント') ? 94 : 74 },
+    { role: 'SaaS営業', score: normalizeText(form.role).includes('営業') ? 92 : 72 },
+    { role: 'BizDev', score: (normalizeText(form.role).includes('営業') || normalizeText(form.role).includes('マーケティング')) ? 88 : 68 },
+    { role: 'カスタマーサクセス', score: normalizeText(form.role).includes('営業') ? 86 : 68 },
+    { role: '事業企画', score: normalizeText(form.role).includes('企画') ? 92 : normalizeText(form.role).includes('コンサル') ? 86 : 70 },
+    { role: 'データアナリスト', score: (normalizeText(form.role).includes('マーケ') || normalizeText(form.role).includes('エンジニア') || strengths.some((s) => normalizeText(s).includes('データ'))) ? 90 : 72 },
+    { role: 'プロジェクトマネージャー', score: (normalizeText(form.role).includes('コンサル') || normalizeText(form.role).includes('pm') || normalizeText(form.role).includes('エンジニア')) ? 88 : 70 },
+    { role: 'ITコンサルタント', score: normalizeText(form.role).includes('コンサル') ? 94 : 74 },
   ]
   const roles = rolePreferences.sort((a, b) => b.score - a.score).slice(0, 5)
 
+  const hasAI = desired.some((item) => normalizeText(item).includes('ai'))
+  const hasSaaS = desired.some((item) => normalizeText(item).includes('saas'))
   const recommendations = COMPANY_POOL.filter((company) => {
     if (hasAI && ['layerx', 'dirbato'].includes(company.key)) return true
     if (hasSaaS && ['smarthr', 'sansan', 'freee'].includes(company.key)) return true
@@ -156,21 +206,21 @@ function buildResult(form) {
   ]
 
   const insights = [
-    `年収${income}万円、経験${experience}年のバランスは同世代でも安定感があります。`, 
-    form.purpose.includes('裁量')
+    `現在の市場価値スコアは${finalScore}点です。経験${experience}年、年収レンジ${incomeRaw || '未設定'}を基に算出しています。`,
+    includesIn(form.purpose, '裁量')
       ? '裁量重視のポジションを狙うことで市場価値をさらに引き上げられます。'
       : '専門性を深めることでキャリアの上昇余地が広がります。',
-    `${form.role}の経験を活かすと、${roles[0]?.role || '専門職'}や${roles[1]?.role || 'PM'}への遷移が自然です。`, 
+    `${form.role}の経験を活かすと、${roles[0]?.role || '専門職'}や${roles[1]?.role || 'PM'}への遷移が自然です。`,
   ]
 
   const actions = [
-    `強みの「${form.strengths.join('、') || 'スキル'}」を求人要件に反映し、適合度の高い案件を3件ピックアップする`, 
-    `希望業界「${form.desiredIndustry.join('、')}」の企業カルチャーと成長戦略を比較分析する`, 
-    `${form.workStyle === 'フルリモート' ? 'リモート可の企業を優先して検討する' : 'ハイブリッド/出社条件を企業ごとに整理する'}`, 
+    `強みの「${strengths.join('、') || 'スキル'}」を求人要件に反映し、適合度の高い案件を3件ピックアップする`,
+    `希望業界「${desired.join('、')}」の企業カルチャーと成長戦略を比較分析する`,
+    `${form.workStyle === 'フルリモート' ? 'リモート可の企業を優先して検討する' : 'ハイブリッド/出社条件を企業ごとに整理する'}`,
   ]
 
   return {
-    score: `${score}点`, 
+    score: `${finalScore}点`,
     generationComparison: Math.min(98, 70 + Math.round(experience * 2 + (income / 100))),
     radarData: buildRadarData(form),
     industries,
@@ -196,6 +246,12 @@ export default function Result() {
   const navigate = useNavigate()
   const form = location.state || DEFAULT_FORM
   const result = useMemo(() => buildResult(form), [form])
+  const [openCompany, setOpenCompany] = useState(null)
+  const [openMarket, setOpenMarket] = useState(false)
+  const [highlightedMetric, setHighlightedMetric] = useState('')
+
+  const openModal = (company) => setOpenCompany(company)
+  const closeModal = () => setOpenCompany(null)
 
   return (
     <div className="bg-slate-50 text-slate-950">
@@ -240,16 +296,9 @@ export default function Result() {
 
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
               <p className="text-sm uppercase tracking-[0.24em] text-slate-500">スキルレーダー</p>
-              <div className="mt-6 h-[360px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={result.radarData}>
-                    <PolarGrid stroke="#e2e8f0" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 12 }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} />
-                    <Radar name="あなた" dataKey="A" stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.4} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<div className="mt-6 h-[360px] flex items-center justify-center">読み込み中...</div>}>
+                <RadarWrapper data={result.radarData} />
+              </Suspense>
             </div>
           </div>
 
@@ -303,7 +352,10 @@ export default function Result() {
                       <p className="text-sm uppercase tracking-[0.24em] text-slate-500">{company.name}</p>
                       <h3 className="mt-3 text-xl font-semibold text-slate-950">{company.reason}</h3>
                     </div>
-                    <div className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white">Score {company.score}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white">Score {company.score}</div>
+                      <button onClick={() => openModal(company)} className="rounded-full bg-white/80 px-3 py-2 text-sm border">企業詳細</button>
+                    </div>
                   </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">年収ポテンシャル: {company.income}万円</div>
@@ -317,36 +369,26 @@ export default function Result() {
             </div>
           </div>
 
+          <CompanyModal open={!!openCompany} onClose={closeModal} company={openCompany} />
+          <MarketValueModal open={openMarket} onClose={() => setOpenMarket(false)} form={form} result={result} />
+
           <section className="mt-10 rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500">企業比較</p>
                 <p className="mt-2 text-sm text-slate-600">おすすめ企業のスコアとフィット感をすばやく比較できます。</p>
               </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setOpenMarket(true)} className="rounded-3xl bg-white px-4 py-2 text-sm border">市場価値の詳細を見る</button>
+              </div>
             </div>
             <div className="mt-6 overflow-hidden rounded-[1.75rem] bg-white">
-              <div className="grid grid-cols-[1.6fr_repeat(5,1fr)] gap-0 border-b border-slate-200 bg-slate-950 px-5 py-4 text-sm uppercase tracking-[0.2em] text-slate-100">
-                <span>指標</span>
-                {result.recommendedCompanies.map((company) => (
-                  <span key={company.name} className="text-center">{company.name}</span>
-                ))}
-              </div>
-              <div className="divide-y divide-slate-200">
-                {['成長環境', '裁量', '安定性', 'カルチャー適合', '総合適性'].map((label) => (
-                  <div key={label} className="grid grid-cols-[1.6fr_repeat(5,1fr)] gap-0 px-5 py-4 text-sm text-slate-700">
-                    <span>{label}</span>
-                    {result.recommendedCompanies.map((company) => {
-                      const score = company.score - (label === '安定性' ? 5 : 0) - (label === '裁量' ? 2 : 0)
-                      const value = Math.max(55, Math.min(95, score))
-                      return (
-                        <div key={`${company.name}-${label}`} className="flex items-center justify-center gap-2">
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                            <div className="h-full rounded-full bg-sky-500" style={{ width: `${value}%` }} />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+              <Suspense fallback={<div className="p-6">読み込み中...</div>}>
+                <StarGrid companies={result.comparison} metrics={['成長環境', '裁量', '安定性', 'カルチャー適合', '総合適性']} highlighted={highlightedMetric} />
+              </Suspense>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {['成長環境', '裁量', '安定性', 'カルチャー適合', '総合適性'].map((m) => (
+                  <button key={m} onClick={() => setHighlightedMetric(highlightedMetric === m ? '' : m)} className={`rounded-full px-3 py-2 text-sm ${highlightedMetric === m ? 'bg-sky-500 text-white' : 'bg-slate-100'}`}>{m}</button>
                 ))}
               </div>
             </div>

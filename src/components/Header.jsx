@@ -17,10 +17,10 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:border-slate-300 hover:bg-slate-50">
+          <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition-transform transform hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-200">
             ログイン
           </button>
-          <Link className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-semibold text-white shadow-xl shadow-slate-950/10 transition hover:bg-slate-800" to="/assessment">
+          <Link className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-semibold text-white shadow-xl shadow-slate-950/10 transition-transform transform hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-300" to="/assessment">
             無料で始める
           </Link>
         </div>

@@ -10,9 +10,7 @@ const INITIAL_FORM = {
   income: '',
   strengths: [],
   weaknesses: [],
-  otherStrength: '',
-  otherWeakness: '',
-  purpose: '',
+  purpose: [],
   desiredIndustry: [],
   workStyle: '',
   idealFuture: '',
@@ -21,17 +19,20 @@ const INITIAL_FORM = {
 const ROLE_OPTIONS = [
   '営業',
   'マーケティング',
-  'エンジニア',
-  'コンサルタント',
-  '企画',
+  'ITコンサル',
+  '戦略コンサル',
+  'PM',
+  'BizDev',
   '人事',
-  '経理・財務',
+  '経理',
+  '事業企画',
+  'エンジニア',
+  'データアナリスト',
   'カスタマーサクセス',
-  'デザイナー',
   'その他',
 ]
 
-const LEVEL_OPTIONS = ['メンバー', 'リーダー', 'マネージャー', '責任者・役員クラス']
+const LEVEL_OPTIONS = ['メンバー', '主任', '係長', '課長', '部長', '執行役員', '経営層']
 
 const STRENGTH_OPTIONS = {
   営業: ['新規開拓', '既存深耕', '提案営業', '無形商材営業', 'エンタープライズ営業', 'クロージング', '顧客折衝', 'プレゼン', 'その他'],
@@ -48,13 +49,32 @@ const STRENGTH_OPTIONS = {
 
 const WEAKNESS_OPTIONS = ['単純作業', '細かい事務作業', '長時間会議', '数字管理', '顧客折衝', '資料作成', 'コーディング', 'マネジメント', '新規開拓', '調整業務', 'その他']
 
-const PURPOSE_OPTIONS = ['年収を上げたい', '裁量を増やしたい', '専門性を高めたい', 'マネジメントに挑戦したい', 'ワークライフバランスを改善したい', '成長産業に移りたい', 'その他']
+const PURPOSE_OPTIONS = ['年収アップ', '市場価値向上', '裁量拡大', 'マネジメント経験', 'リモート勤務', 'ワークライフバランス', '専門性向上', '事業責任者', '起業準備', 'グローバル経験', 'その他']
 
-const INDUSTRY_OPTIONS = ['ITコンサル', 'SaaS', 'AI', 'DX', '事業会社', '金融', '製造', '人材', '広告', 'その他']
+const INDUSTRY_OPTIONS = ['SaaS', 'AI', 'DX', 'ITコンサル', '人材', '広告', '金融', '製造', 'ヘルスケア', '教育', 'その他']
 
 const WORK_STYLE_OPTIONS = ['出社中心', 'ハイブリッド', 'フルリモート', '裁量重視', '安定重視']
 
 const steps = ['基本情報', '得意/苦手領域', '志向性']
+
+function CustomTagInput({ name, add }) {
+  const [value, setValue] = useState('')
+  return (
+    <label className="grid gap-2 text-sm font-medium text-slate-900">
+      {name}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="例: SQL, ABテスト"
+          className="flex-1 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none"
+        />
+        <button type="button" onClick={() => add(value, setValue)} className="rounded-3xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white">追加</button>
+      </div>
+    </label>
+  )
+}
 
 export default function Assessment() {
   const navigate = useNavigate()
@@ -74,10 +94,19 @@ export default function Assessment() {
   const handleChange = (key) => (event) => {
     const value = event.target.value
     if (key === 'role') {
-      setForm({ ...form, role: value, strengths: [], otherStrength: '' })
+      setForm({ ...form, role: value, strengths: [] })
     } else {
       setForm({ ...form, [key]: value })
     }
+    setError('')
+  }
+
+  const addCustomTag = (key, value, setter) => {
+    const trimmed = String(value || '').trim()
+    if (!trimmed) return
+    const next = Array.from(new Set([...(form[key] || []), trimmed]))
+    setForm({ ...form, [key]: next })
+    setter('')
     setError('')
   }
 
@@ -86,12 +115,12 @@ export default function Assessment() {
       return [form.age, form.role, form.level, form.experience, form.income].every((value) => String(value).trim().length > 0)
     }
     if (stepIndex === 1) {
-      const strengthsOk = form.strengths.length > 0 && (!form.strengths.includes('その他') || String(form.otherStrength).trim().length > 0)
-      const weaknessesOk = form.weaknesses.length > 0 && (!form.weaknesses.includes('その他') || String(form.otherWeakness).trim().length > 0)
+      const strengthsOk = form.strengths.length > 0
+      const weaknessesOk = form.weaknesses.length > 0
       return strengthsOk && weaknessesOk
     }
     if (stepIndex === 2) {
-      return form.purpose && form.desiredIndustry.length > 0 && form.workStyle && String(form.idealFuture).trim().length > 0
+      return Array.isArray(form.purpose) && form.purpose.length > 0 && form.desiredIndustry.length > 0 && form.workStyle && String(form.idealFuture).trim().length > 0
     }
     return false
   }
@@ -209,16 +238,25 @@ export default function Assessment() {
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
-                  年収（万円）
-                  <input
-                    type="number"
-                    min="200"
-                    max="3000"
+                  年収レンジ
+                  <select
                     value={form.income}
                     onChange={handleChange('income')}
-                    placeholder="例: 850"
                     className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
-                  />
+                  >
+                    <option value="">選択してください</option>
+                    <option value="200未満">200万円未満</option>
+                    <option value="200-300">200〜300万円</option>
+                    <option value="300-400">300〜400万円</option>
+                    <option value="400-500">400〜500万円</option>
+                    <option value="500-600">500〜600万円</option>
+                    <option value="600-700">600〜700万円</option>
+                    <option value="700-800">700〜800万円</option>
+                    <option value="800-900">800〜900万円</option>
+                    <option value="900-1000">900〜1000万円</option>
+                    <option value="1000-1200">1000〜1200万円</option>
+                    <option value="1200以上">1200万円以上</option>
+                  </select>
                 </label>
               </div>
             )}
@@ -241,18 +279,7 @@ export default function Assessment() {
                       </button>
                     ))}
                   </div>
-                  {form.strengths.includes('その他') && (
-                    <label className="grid gap-2 text-sm font-medium text-slate-900">
-                      その他の得意領域
-                      <input
-                        type="text"
-                        value={form.otherStrength}
-                        onChange={handleChange('otherStrength')}
-                        placeholder="例: 組織開発"
-                        className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
-                      />
-                    </label>
-                  )}
+                  <CustomTagInput name="その他の得意領域" add={(val, setter) => addCustomTag('strengths', val, setter)} />
                 </div>
 
                 <div className="grid gap-4">
@@ -271,18 +298,7 @@ export default function Assessment() {
                       </button>
                     ))}
                   </div>
-                  {form.weaknesses.includes('その他') && (
-                    <label className="grid gap-2 text-sm font-medium text-slate-900">
-                      その他の苦手領域
-                      <input
-                        type="text"
-                        value={form.otherWeakness}
-                        onChange={handleChange('otherWeakness')}
-                        placeholder="例: 交渉対応"
-                        className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
-                      />
-                    </label>
-                  )}
+                  <CustomTagInput name="その他の苦手領域" add={(val, setter) => addCustomTag('weaknesses', val, setter)} />
                 </div>
               </div>
             )}
@@ -290,19 +306,21 @@ export default function Assessment() {
             {step === 2 && (
               <div className="grid gap-6">
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <label className="grid gap-2 text-sm font-medium text-slate-900">
-                    転職目的
-                    <select
-                      value={form.purpose}
-                      onChange={handleChange('purpose')}
-                      className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-sky-100"
-                    >
-                      <option value="">選択してください</option>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">転職目的</p>
+                    <p className="text-sm text-slate-500">複数選択可</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {PURPOSE_OPTIONS.map((item) => (
-                        <option key={item} value={item}>{item}</option>
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => toggleChip('purpose', item)}
+                          className={`rounded-3xl border px-4 py-3 text-sm transition ${form.purpose.includes(item) ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                          {item}
+                        </button>
                       ))}
-                    </select>
-                  </label>
+                    </div>
+                  </div>
                   <label className="grid gap-2 text-sm font-medium text-slate-900">
                     希望する働き方
                     <select
