@@ -145,16 +145,40 @@ export default function Result() {
                       <h3 className="mt-3 text-xl font-semibold text-slate-950">{company.reason}</h3>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white">Score {company.score}</div>
+                      <div className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white">総合適合度 {company.overallFit}点</div>
                       <button onClick={() => openModal(company)} className="rounded-full bg-white/80 px-3 py-2 text-sm border">企業詳細</button>
                     </div>
                   </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">年収ポテンシャル: {company.income}万円</div>
-                    <div className="rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">成長環境: {company.growth}</div>
-                    <div className="rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">裁量: {company.discretion}</div>
-                    <div className="rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">安定性: {company.stability}</div>
-                    <div className="rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">カルチャー: {company.culture}</div>
+                  <div className="mt-5 grid gap-3">
+                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
+                      <p className="text-sm font-semibold text-slate-900">推薦理由</p>
+                      <p className="mt-2 leading-6">{company.recommendation}</p>
+                    </div>
+                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
+                      <p className="text-sm font-semibold text-slate-900">注意点</p>
+                      <p className="mt-2 leading-6">{company.caution}</p>
+                    </div>
+                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
+                      <p className="text-sm font-semibold text-slate-900">一致した条件</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {company.matchedConditions.map((condition) => (
+                          <span key={condition} className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                            ✓ {condition}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
+                      <p className="text-sm font-semibold text-slate-900">スコア内訳</p>
+                      <div className="mt-3 space-y-3">
+                        {company.scoreBreakdown.map((item) => (
+                          <div key={item.label} className="grid grid-cols-[1fr_auto] items-center gap-3">
+                            <span className="text-sm text-slate-600">{item.label}</span>
+                            <span className="text-sm font-semibold text-slate-950">{item.value}点</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

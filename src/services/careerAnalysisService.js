@@ -196,11 +196,22 @@ function buildCompanyCandidates(form) {
     return ['accenture', 'baycurrent', 'cyberagent', 'recruit', 'mercari'].includes(company.key)
   })
 
-  return prioritized.map((company) => ({
-    ...company,
-    reason: company.description,
-    score: company.score,
-  }))
+  return prioritized.map((company) => {
+    const conditions = buildMatchedConditions(form, company)
+    const scoreBreakdown = buildScoreBreakdown(form, company)
+    const overall = Math.round(scoreBreakdown.reduce((sum, item) => sum + item.value, 0) / scoreBreakdown.length)
+    return {
+      ...company,
+      reason: company.description,
+      recommendation: buildRecommendationReason(form, company),
+      caution: buildCaution(company),
+      matchedConditions: conditions.length > 0 ? conditions : ['年収アップ', 'キャリア成長'],
+      scoreBreakdown,
+      overallFit: overall,
+      careerPath: buildCareerPath(company),
+      salaryRange: buildSalaryRange(company),
+    }
+  })
 }
 
 function buildComparison(candidates) {
@@ -266,6 +277,80 @@ function buildAnalytics(form) {
     workFit,
     finalScore,
   }
+}
+
+function buildMatchedConditions(form, company) {
+  const conditions = []
+  const purpose = Array.isArray(form.purpose) ? form.purpose : [form.purpose]
+  if (purpose.some((item) => includesIn(item, '年収') || includesIn(item, '報酬') || includesIn(item, '収入'))) conditions.push('年収アップ')
+  if (purpose.some((item) => includesIn(item, '裁量'))) conditions.push('裁量拡大')
+  if (Array.isArray(form.desiredIndustry) && form.desiredIndustry.some((item) => normalizeText(item).includes('ai'))) conditions.push('AI業界志向')
+  if (Array.isArray(form.desiredIndustry) && form.desiredIndustry.some((item) => normalizeText(item).includes('saas'))) conditions.push('SaaS業界志向')
+  if (String(form.workStyle || '').includes('リモート')) conditions.push('リモート志向')
+  if (String(form.workStyle || '').includes('ハイブリッド')) conditions.push('ハイブリッド志向')
+  return Array.from(new Set(conditions)).slice(0, 4)
+}
+
+function buildRecommendationReason(form, company) {
+  const strengths = Array.isArray(form.strengths) ? form.strengths : []
+  const highlighted = strengths.filter((item) => ['課題解決', 'データ分析', '要件定義', 'プロジェクト推進', '顧客折衝', 'AI開発'].some((term) => normalizeText(item).includes(normalizeText(term))))
+  const tags = highlighted.length ? highlighted.slice(0, 2) : strengths.slice(0, 2)
+  if (tags.length === 0) {
+    return `${company.description}の環境で、あなたの経験を活かしたキャリア成長が期待できます。`
+  }
+  return `あなたの強みである「${tags.join('」「')}」が活かせる環境。`
+}
+
+function buildCaution(company) {
+  const defaultWarnings = {
+    accenture: '成長環境は高いが多忙なプロジェクトも多い。',
+    baycurrent: '裁量が高い反面、スピード感のある対応が求められる。',
+    dirbato: '成長ポテンシャルは高いが、スタートアップらしい変化の速さがある。',
+    layerx: '挑戦的なミッションが多く、業務範囲が広がりやすい。',
+    smarthr: 'SaaS特有の顧客対応力が求められる。',
+    cyberagent: '成果主義が強く、短期で結果を出す姿勢が必要。',
+    recruit: '業務範囲が広く、裁量と調整の両方が求められる。',
+    sansan: '成長期ならではの変化が激しく、柔軟性が必要。',
+    freee: 'リモート志向が強いが、プロダクト理解が必須。',
+    mercari: 'スピード感が高く、意思決定の速さが求められる。',
+  }
+  return defaultWarnings[company.key] || '魅力が大きい一方で、スピード感のある対応が求められます。'
+}
+
+function buildScoreBreakdown(form, company) {
+  const score = company.score
+  const base = Math.min(100, Math.max(70, score))
+  const skill = Math.min(100, base + (company.key === 'dirbato' && Array.isArray(form.strengths) && form.strengths.some((item) => normalizeText(item).includes('データ')) ? 4 : 0))
+  const industry = Math.min(100, base + (Array.isArray(form.desiredIndustry) && form.desiredIndustry.some((item) => normalizeText(item).includes(normalizeText(company.key))) ? 5 : 0))
+  const work = Math.min(100, base - (String(form.workStyle || '').includes('出社') && company.discretion === '高' ? 8 : 0))
+  const orientation = Math.min(100, base + (includesIn(form.purpose, '裁量') && company.discretion === '高' ? 5 : 0))
+  return [
+    { label: 'スキル適合', value: skill },
+    { label: '業界適合', value: industry },
+    { label: '働き方適合', value: work },
+    { label: 'キャリア志向適合', value: orientation },
+  ]
+}
+
+function buildCareerPath(company) {
+  const paths = {
+    accenture: ['入社1年目：プロジェクト参画', '3年目：チームリード', '5年目：DX戦略担当'],
+    baycurrent: ['入社1年目：顧客導入支援', '3年目：ソリューション設計', '5年目：事業開発リード'],
+    dirbato: ['入社1年目：AIプロジェクト参画', '3年目：データ戦略構築', '5年目：事業責任者'],
+    layerx: ['入社1年目：プロダクト開発', '3年目：プロジェクトリード', '5年目：新規事業オーナー'],
+    smarthr: ['入社1年目：SaaS運用', '3年目：事業企画', '5年目：領域リーダー'],
+    cyberagent: ['入社1年目：広告プロジェクト', '3年目：グロース戦略担当', '5年目：事業統括'],
+    recruit: ['入社1年目：人材戦略支援', '3年目：事業企画', '5年目：組織戦略責任者'],
+    sansan: ['入社1年目：B2B営業支援', '3年目：プロダクト改善', '5年目：事業責任者'],
+    freee: ['入社1年目：SaaSプロダクト担当', '3年目：機能企画', '5年目：カスタマーエクスペリエンス統括'],
+    mercari: ['入社1年目：CtoCサービス運用', '3年目：プロダクトグロース', '5年目：事業横断リード'],
+  }
+  return paths[company.key] || ['入社1年目：現場経験を積む', '3年目：専門性を高める', '5年目：戦略的キャリアを構築する']
+}
+
+function buildSalaryRange(company) {
+  const income = company.income || 800
+  return `${income - 100}万円〜${income + 200}万円`
 }
 
 export function analyzeCareerProfile(input = {}) {
