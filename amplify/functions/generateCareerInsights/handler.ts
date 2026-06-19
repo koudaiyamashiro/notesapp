@@ -96,6 +96,18 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'OPTIONS,POST',
 }
 
+function buildJsonResponse(statusCode: number, body: unknown) {
+  return {
+    statusCode,
+    headers: {
+      ...CORS_HEADERS,
+      'x-debug-version': DEBUG_VERSION,
+      'content-type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify(body),
+  }
+}
+
 function asArray(value: unknown) {
   return Array.isArray(value) ? value : []
 }
@@ -903,28 +915,38 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     }
   }
 
+  let userProfile: Record<string, unknown> = {}
+  let topCompanies: unknown[] = []
+  let analysisResult: Record<string, unknown> = {}
+  let researchMeta: CompanyResearchMeta = {
+    researchSource: 'none',
+    researchedCompanyCount: 0,
+    researchFallback: true,
+  }
+
   try {
     const requestBody = 'body' in event && typeof event.body === 'string' ? JSON.parse(event.body || '{}') : event
     const typedRequestBody = requestBody as CareerInsightsRequest
-    const userProfile = (typedRequestBody.userProfile || {}) as Record<string, unknown>
-    const topCompanies = asArray(typedRequestBody.topCompanies)
-    const analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
+    userProfile = (typedRequestBody.userProfile || {}) as Record<string, unknown>
+    topCompanies = asArray(typedRequestBody.topCompanies)
+    analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
     const topCompaniesForResearch = topCompanies.slice(0, 5)
 
     const tavilyApiKey = process.env.TAVILY_API_KEY || ''
     console.log('hasTavilyKey', Boolean(tavilyApiKey))
 
     let companyResearch: CompanyResearchItem[] = []
-    let researchMeta: CompanyResearchMeta = {
-      researchSource: 'none',
-      researchedCompanyCount: 0,
-      researchFallback: true,
-    }
 
     if (tavilyApiKey) {
-      const researchResult = await fetchTopCompanyResearch(tavilyApiKey, topCompaniesForResearch)
-      companyResearch = researchResult.companyResearch
-      researchMeta = researchResult.meta
+      try {
+        const researchResult = await fetchTopCompanyResearch(tavilyApiKey, topCompaniesForResearch)
+        companyResearch = researchResult.companyResearch
+        researchMeta = researchResult.meta
+      } catch (error) {
+        console.log('companyResearchSuccess', 0)
+        console.log('companyResearchFailed', topCompaniesForResearch.length)
+        console.log('researchFallback', true)
+      }
     } else {
       console.log('companyResearchStart')
       console.log('companyResearchSuccess', 0)
@@ -977,40 +999,22 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
       aiSummaryPreview: String(response.aiSummary || '').slice(0, 100),
     })
 
-    return {
-      statusCode: 200,
-      headers: {
-        ...CORS_HEADERS,
-        'x-debug-version': DEBUG_VERSION,
-        'content-type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify(response),
-    }
+    return buildJsonResponse(200, response)
   } catch (error) {
-    const errorResponse = {
-      debugVersion: DEBUG_VERSION,
-      debugSource: 'mock',
-      fallbackReason: 'request_parse_error',
-      aiSummary: '',
-      message: 'Invalid request payload',
-      error: error instanceof Error ? error.message : 'unknown_error',
-    }
+    const fallbackReason = error instanceof SyntaxError ? 'request_parse_error' : 'handler_unexpected_error'
+    const errorResponse = buildMockResponse(userProfile, topCompanies, analysisResult, fallbackReason, 'handler_error', researchMeta)
+    console.warn('generateCareerInsights handler error', {
+      fallbackReason,
+      message: error instanceof Error ? error.message : 'unknown_error',
+    })
 
     console.log('generateCareerInsights responsePreview', {
       debugVersion: errorResponse.debugVersion,
       debugSource: errorResponse.debugSource,
       fallbackReason: errorResponse.fallbackReason,
-      aiSummaryPreview: '',
+      aiSummaryPreview: String(errorResponse.aiSummary || '').slice(0, 100),
     })
 
-    return {
-      statusCode: 400,
-      headers: {
-        ...CORS_HEADERS,
-        'x-debug-version': DEBUG_VERSION,
-        'content-type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify(errorResponse),
-    }
+    return buildJsonResponse(200, errorResponse)
   }
 }
