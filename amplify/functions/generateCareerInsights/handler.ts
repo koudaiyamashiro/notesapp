@@ -20,6 +20,13 @@ type CareerInsightsResponse = {
   analysisSnapshot?: Record<string, unknown>
 }
 
+type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error'
+
+type OpenAIError = Error & {
+  code: OpenAIErrorCode
+  responseType?: string
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
@@ -84,13 +91,21 @@ function buildMockResponse(
   userProfile: Record<string, unknown>,
   topCompanies: unknown[],
   analysisResult: Record<string, unknown>,
-  fallbackReason: string
+  fallbackReason: string,
+  responseType: string
 ): CareerInsightsResponse {
+  const diagnosticSummary =
+    fallbackReason === 'invalid_response' || fallbackReason === 'parse_error'
+      ? `normalize失敗 (responseType: ${responseType})`
+      : ''
+
   return {
     debugVersion: DEBUG_VERSION,
     debugSource: 'mock',
     fallbackReason,
-    aiSummary: 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
+    aiSummary: diagnosticSummary
+      ? `${diagnosticSummary} / generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。`
+      : 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
     companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company as Record<string, unknown>, index)),
     riskAnalysis: [
       '現時点ではモックなので、実際の外部AI推論は行っていません。',
@@ -129,25 +144,43 @@ function stripJsonCodeFence(text: string) {
 
 function parseOpenAIJsonText(text: string) {
   try {
-    return JSON.parse(text)
+    return { parsed: JSON.parse(text), parseError: '' }
   } catch (firstError) {
     const stripped = stripJsonCodeFence(text)
     if (stripped !== text) {
       try {
-        return JSON.parse(stripped)
+        return { parsed: JSON.parse(stripped), parseError: '' }
       } catch (secondError) {
-        console.warn('generateCareerInsights OpenAI parseError', {
-          message: secondError instanceof Error ? secondError.message : 'unknown_error',
-        })
-        return null
+        return {
+          parsed: null,
+          parseError: secondError instanceof Error ? secondError.message : 'unknown_error',
+        }
       }
     }
 
-    console.warn('generateCareerInsights OpenAI parseError', {
-      message: firstError instanceof Error ? firstError.message : 'unknown_error',
-    })
-    return null
+    return {
+      parsed: null,
+      parseError: firstError instanceof Error ? firstError.message : 'unknown_error',
+    }
   }
+}
+
+function getResponseType(value: unknown) {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'array'
+  return typeof value
+}
+
+function getResponseKeys(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.keys(value).slice(0, 20)
+}
+
+function createOpenAIError(code: OpenAIErrorCode, message: string, responseType?: string): OpenAIError {
+  const error = new Error(message) as OpenAIError
+  error.code = code
+  error.responseType = responseType
+  return error
 }
 
 async function generateWithOpenAI(
@@ -204,17 +237,48 @@ async function generateWithOpenAI(
   })
 
   if (!openAIResponse.ok) {
-    return null
+    throw createOpenAIError('openai_error', `OpenAI request failed with status ${openAIResponse.status}`, 'http_error')
   }
 
   const raw = await openAIResponse.json()
+  let rawPreview = ''
+  try {
+    rawPreview = JSON.stringify(raw).slice(0, 1000)
+  } catch {
+    rawPreview = String(raw).slice(0, 1000)
+  }
+  console.log('generateCareerInsights openaiRawPreview', rawPreview)
+
   const text = extractJsonTextFromOpenAIResponse(raw)
-  if (!text) return null
+  if (!text) {
+    console.warn('generateCareerInsights normalize failed', {
+      parseError: 'missing_message_content',
+      responseType: getResponseType(raw),
+      responseKeys: getResponseKeys(raw),
+    })
+    throw createOpenAIError('invalid_response', 'OpenAI response message content was empty', getResponseType(raw))
+  }
 
-  console.log('generateCareerInsights openaiRawPreview', text.slice(0, 1000))
+  const parsedResult = parseOpenAIJsonText(text)
+  const parsed = parsedResult.parsed
+  if (parsedResult.parseError) {
+    console.warn('generateCareerInsights normalize failed', {
+      parseError: parsedResult.parseError,
+      responseType: 'string',
+      responseKeys: [],
+    })
+    throw createOpenAIError('parse_error', parsedResult.parseError, 'string')
+  }
 
-  const parsed = parseOpenAIJsonText(text)
-  if (!parsed || typeof parsed !== 'object') return null
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const responseType = getResponseType(parsed)
+    console.warn('generateCareerInsights normalize failed', {
+      parseError: '',
+      responseType,
+      responseKeys: getResponseKeys(parsed),
+    })
+    throw createOpenAIError('invalid_response', 'Parsed OpenAI response is not an object', responseType)
+  }
 
   const aiSummary = typeof parsed.aiSummary === 'string' ? parsed.aiSummary : ''
   const riskAnalysis = Array.isArray(parsed.riskAnalysis) ? parsed.riskAnalysis.filter((v: unknown) => typeof v === 'string') : []
@@ -222,7 +286,12 @@ async function generateWithOpenAI(
   const companyInsights = Array.isArray(parsed.companyInsights) ? parsed.companyInsights : []
 
   if (!aiSummary || companyInsights.length === 0) {
-    return null
+    console.warn('generateCareerInsights normalize failed', {
+      parseError: '',
+      responseType: getResponseType(parsed),
+      responseKeys: getResponseKeys(parsed),
+    })
+    throw createOpenAIError('invalid_response', 'OpenAI response is missing required fields', getResponseType(parsed))
   }
 
   return {
@@ -267,7 +336,8 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     const apiKey = process.env.OPENAI_API_KEY || ''
     console.log('generateCareerInsights key status', { hasOpenAIKey: Boolean(apiKey) })
     let response: CareerInsightsResponse | null = null
-    let fallbackReason = ''
+    let fallbackReason: OpenAIErrorCode = 'openai_error'
+    let fallbackResponseType = 'unknown'
 
     if (apiKey) {
       console.log('generateCareerInsights OpenAI call start')
@@ -275,28 +345,24 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
         response = await generateWithOpenAI(apiKey, userProfile, topCompanies, analysisResult)
         if (response) {
           console.log('generateCareerInsights OpenAI call success')
-        } else {
-          fallbackReason = 'invalid_response'
-          console.warn('generateCareerInsights OpenAI call failed', {
-            status: 'invalid_response',
-            message: 'OpenAI response could not be normalized',
-          })
         }
       } catch (error) {
-        fallbackReason = 'openai_exception'
+        const typedError = error as Partial<OpenAIError>
+        fallbackReason = typedError.code === 'parse_error' || typedError.code === 'invalid_response' ? typedError.code : 'openai_error'
+        fallbackResponseType = typeof typedError.responseType === 'string' ? typedError.responseType : 'unknown'
         console.warn('generateCareerInsights OpenAI call failed', {
-          status: 'exception',
+          status: fallbackReason,
           message: error instanceof Error ? error.message : 'unknown_error',
         })
       }
     } else {
-      fallbackReason = 'missing_openai_api_key'
+      fallbackReason = 'openai_error'
+      fallbackResponseType = 'missing_openai_api_key'
     }
 
     if (!response) {
-      const resolvedFallbackReason = fallbackReason || 'unknown'
-      console.log('generateCareerInsights fallback', { fallbackToMock: true, fallbackReason: resolvedFallbackReason })
-      response = buildMockResponse(userProfile, topCompanies, analysisResult, resolvedFallbackReason)
+      console.log('generateCareerInsights fallback', { fallbackToMock: true, fallbackReason, responseType: fallbackResponseType })
+      response = buildMockResponse(userProfile, topCompanies, analysisResult, fallbackReason, fallbackResponseType)
     }
 
     console.log('generateCareerInsights responsePreview', {
