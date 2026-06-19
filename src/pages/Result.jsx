@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import Header from '../components/Header.jsx'
-import Roadmap from '../components/Roadmap.jsx'
 import CompanyCard from '../components/CompanyCard.jsx'
 import CompanyModal from '../components/CompanyModal.jsx'
 import MarketValueModal from '../components/MarketValueModal.jsx'
@@ -104,6 +103,8 @@ export default function Result() {
   const [openMarket, setOpenMarket] = useState(false)
   const [highlightedMetric, setHighlightedMetric] = useState('')
   const [showOtherCompanies, setShowOtherCompanies] = useState(false)
+  const [openRoadmapIndex, setOpenRoadmapIndex] = useState(-1)
+  const [openActionIndex, setOpenActionIndex] = useState(-1)
 
   useEffect(() => {
     let active = true
@@ -152,6 +153,49 @@ export default function Result() {
   }, [aiInsights?.marketValue, form.income, result.score])
 
   const selectedCompany = openCompany
+
+  const roadmapAccordionItems = useMemo(() => {
+    const periods = ['現在', '1年後', '3年後', '5年後']
+    const aiDetails = Array.isArray(aiInsights?.careerRoadmapDetails) ? aiInsights.careerRoadmapDetails : []
+
+    return (result.roadmap || []).map((stepText, index) => {
+      const period = periods[index] || `${index + 1}ステップ目`
+      const aiDetail = aiDetails[index] || {}
+      const actions = Array.isArray(aiDetail.actions) && aiDetail.actions.length > 0
+        ? aiDetail.actions
+        : [
+            `${period}に必要なタスクを3つに分解して実行する`,
+            `成果を定量化し、次フェーズへ接続する`,
+          ]
+
+      return {
+        title: String(aiDetail.title || stepText || `${period}の計画`),
+        period: String(aiDetail.period || period),
+        why: String(aiDetail.why || 'この期間の積み上げが次のキャリア段階の選択肢を広げるためです。'),
+        actions,
+        caution: String(aiDetail.caution || '目標を広げすぎず、優先順位を2〜3点に絞って進めてください。'),
+      }
+    })
+  }, [aiInsights?.careerRoadmapDetails, result.roadmap])
+
+  const nextActionAccordionItems = useMemo(() => {
+    const aiDetails = Array.isArray(aiInsights?.nextActionDetails) ? aiInsights.nextActionDetails : []
+    return (result.actions || []).map((actionText, index) => {
+      const aiDetail = aiDetails[index] || {}
+      return {
+        title: String(aiDetail.title || actionText || `アクション${index + 1}`),
+        purpose: String(aiDetail.purpose || '転職判断の精度を高め、選考で再現性ある強みを示すためです。'),
+        steps: Array.isArray(aiDetail.steps) && aiDetail.steps.length > 0
+          ? aiDetail.steps
+          : [
+              '目標と期限を設定する',
+              '実行内容を週次で振り返る',
+            ],
+        deliverable: String(aiDetail.deliverable || '成果を示す資料、または実績サマリー'),
+        completionCriteria: String(aiDetail.completionCriteria || '具体成果を数値で説明できる状態'),
+      }
+    })
+  }, [aiInsights?.nextActionDetails, result.actions])
 
   const openModal = (company) => setOpenCompany(company)
   const closeModal = () => setOpenCompany(null)
@@ -406,18 +450,18 @@ export default function Result() {
                       <div key={report.companyName} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-slate-900">{report.companyName}</p>
-                          <span className="text-xs font-semibold text-blue-700">fitScore: {report.fitScore}</span>
+                          <span className="text-xs font-semibold text-blue-700">適性スコア {report.fitScore}</span>
                         </div>
-                        <p className="mt-1 text-xs text-slate-600">expectedRole: {report.expectedRole}</p>
-                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">recommendationReason</p>
+                        <p className="mt-1 text-xs text-slate-600">想定ポジション: {report.expectedRole}</p>
+                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">推薦理由</p>
                         <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.recommendationReason || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">concernPoints</p>
+                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">懸念点</p>
                         <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.concernPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">interviewAppealPoints</p>
+                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">面接で訴求すべきポイント</p>
                         <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.interviewAppealPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">preparationActions</p>
+                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">選考前にやるべき準備</p>
                         <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.preparationActions || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs text-slate-600">estimatedOfferProbability: {report.estimatedOfferProbability}</p>
+                        <p className="mt-2 text-xs text-slate-600">内定可能性の目安: {report.estimatedOfferProbability}</p>
                       </div>
                     )) : <p className="text-sm text-slate-600">企業別レポートはありません。</p>}
                   </div>
@@ -503,20 +547,71 @@ export default function Result() {
           <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
             <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
               <p className="text-sm uppercase tracking-[0.24em] text-slate-500">5年キャリアロードマップ</p>
-              <Roadmap steps={result.roadmap} />
+              <div className="mt-6 space-y-3">
+                {roadmapAccordionItems.map((item, index) => (
+                  <div key={`${item.period}-${item.title}`} className="rounded-2xl border border-slate-200 bg-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => setOpenRoadmapIndex((prev) => (prev === index ? -1 : index))}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                    >
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{item.period}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{item.title}</p>
+                      </div>
+                      <span className="text-sm text-slate-500">{openRoadmapIndex === index ? '▲' : '▼'}</span>
+                    </button>
+                    {openRoadmapIndex === index && (
+                      <div className="border-t border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
+                        <p className="font-semibold text-slate-900">その期間にやるべきこと</p>
+                        <ul className="mt-2 space-y-1">
+                          {item.actions.map((action) => <li key={action}>- {action}</li>)}
+                        </ul>
+                        <p className="mt-3 font-semibold text-slate-900">なぜそれが必要か</p>
+                        <p className="mt-1 text-slate-600">{item.why}</p>
+                        <p className="mt-3 font-semibold text-slate-900">具体アクション</p>
+                        <p className="mt-1 text-slate-600">優先タスクを2つに絞り、週次レビューで進捗を可視化してください。</p>
+                        <p className="mt-3 font-semibold text-slate-900">注意点</p>
+                        <p className="mt-1 text-slate-600">{item.caution}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
               <p className="text-sm uppercase tracking-[0.24em] text-slate-500">今からやるべき3つのアクション</p>
-              <ol className="mt-6 space-y-4 text-sm leading-7 text-slate-700">
-                {result.actions.map((action, index) => (
-                  <li key={action} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <div className="flex items-start gap-3 text-slate-950">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">{index + 1}</span>
-                      <span>{action}</span>
-                    </div>
-                  </li>
+              <div className="mt-6 space-y-3 text-sm leading-7 text-slate-700">
+                {nextActionAccordionItems.map((item, index) => (
+                  <div key={`${index}-${item.title}`} className="rounded-2xl border border-slate-200 bg-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => setOpenActionIndex((prev) => (prev === index ? -1 : index))}
+                      className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left"
+                    >
+                      <div className="flex items-start gap-3 text-slate-950">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">{index + 1}</span>
+                        <span>{item.title}</span>
+                      </div>
+                      <span className="text-sm text-slate-500">{openActionIndex === index ? '▲' : '▼'}</span>
+                    </button>
+                    {openActionIndex === index && (
+                      <div className="border-t border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
+                        <p className="font-semibold text-slate-900">目的</p>
+                        <p className="mt-1 text-slate-600">{item.purpose}</p>
+                        <p className="mt-3 font-semibold text-slate-900">具体的な進め方</p>
+                        <ul className="mt-1 space-y-1">
+                          {item.steps.map((step) => <li key={step}>- {step}</li>)}
+                        </ul>
+                        <p className="mt-3 font-semibold text-slate-900">成果物イメージ</p>
+                        <p className="mt-1 text-slate-600">{item.deliverable}</p>
+                        <p className="mt-3 font-semibold text-slate-900">完了条件</p>
+                        <p className="mt-1 text-slate-600">{item.completionCriteria}</p>
+                      </div>
+                    )}
+                  </div>
                 ))}
-              </ol>
+              </div>
             </div>
           </div>
 
