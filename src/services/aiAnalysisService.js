@@ -6,7 +6,18 @@ function normalizeText(value) {
   return String(value || '').trim().toLowerCase()
 }
 
-const CAREER_INSIGHTS_ENDPOINT = import.meta.env.VITE_GENERATE_CAREER_INSIGHTS_URL || import.meta.env.VITE_AI_ANALYSIS_ENDPOINT || ''
+function resolveCareerInsightsEndpoint() {
+  const envUrl = import.meta.env.VITE_GENERATE_CAREER_INSIGHTS_URL || import.meta.env.VITE_AI_ANALYSIS_ENDPOINT || ''
+  if (envUrl) return envUrl
+
+  if (typeof window !== 'undefined') {
+    const customOutputs = window.__AMPLIFY_CUSTOM_OUTPUTS__ || window.amplify_outputs || window.__AMPLIFY_OUTPUTS__
+    const outputUrl = customOutputs?.custom?.generateCareerInsightsUrl
+    if (typeof outputUrl === 'string' && outputUrl) return outputUrl
+  }
+
+  return ''
+}
 
 function extractProfileSignals(profile) {
   const strengths = Array.isArray(profile.strengths) ? profile.strengths : []
@@ -154,9 +165,10 @@ function buildCompanyInsights(profile, company, index, total) {
 }
 
 async function callGenerateCareerInsights(payload) {
-  if (!CAREER_INSIGHTS_ENDPOINT) return null
+  const endpoint = resolveCareerInsightsEndpoint()
+  if (!endpoint) return null
 
-  const response = await fetch(CAREER_INSIGHTS_ENDPOINT, {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
