@@ -256,13 +256,16 @@ function buildCompanyCandidates(form) {
 }
 
 function buildComparison(candidates) {
-  const compareValues = ['成長環境', '裁量', '安定性', 'カルチャー適合', '総合適性']
   return candidates.map((company) => ({
     name: company.name,
-    scores: compareValues.map((metric, index) => ({
-      label: metric,
-      value: Math.min(100, company.score + (4 - index) * 2 - (metric === '安定性' ? 5 : 0)),
-    })),
+    scores: [
+      { label: '年収', value: clamp(Math.round((company.salaryMid / 1200) * 100), 40, 100) },
+      { label: '成長環境', value: clamp(company.growthScore, 40, 100) },
+      { label: '裁量', value: clamp(company.ownershipScore, 40, 100) },
+      { label: '安定性', value: clamp(company.stabilityScore, 40, 100) },
+      { label: 'カルチャー適合', value: clamp(Math.round((company.stabilityScore + company.workLifeBalanceScore) / 2), 40, 100) },
+      { label: '働き方適合', value: clamp(Math.round((company.remoteScore + company.workLifeBalanceScore) / 2), 40, 100) },
+    ],
   }))
 }
 
@@ -473,6 +476,9 @@ export function analyzeCareerProfile(input = {}) {
   const candidates = buildCompanyCandidates(form)
   const comparison = buildComparison(candidates)
 
+  const top5Companies = candidates.slice(0, 5)
+  const otherCompanies = candidates.slice(5, 20)
+
   return {
     score: `${finalScore}点`,
     rawScore: finalScore,
@@ -484,9 +490,10 @@ export function analyzeCareerProfile(input = {}) {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5),
     roles,
-    recommendedCompanies: candidates.slice(0, 10),
+    recommendedCompanies: top5Companies,
+    otherCompanies,
     companyCandidates: candidates,
-    comparison,
+    comparison: comparison.slice(0, 5),
     roadmap: [
       '現在：現職で強みを棚卸し',
       '1年後：おすすめ職種へ転職',

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import Header from '../components/Header.jsx'
 import Roadmap from '../components/Roadmap.jsx'
+import CompanyCard from '../components/CompanyCard.jsx'
 import CompanyModal from '../components/CompanyModal.jsx'
 import MarketValueModal from '../components/MarketValueModal.jsx'
 import { analyzeCareerProfile } from '../services/careerAnalysisService.js'
@@ -41,6 +42,7 @@ export default function Result() {
   const [openCompany, setOpenCompany] = useState(null)
   const [openMarket, setOpenMarket] = useState(false)
   const [highlightedMetric, setHighlightedMetric] = useState('')
+  const [showOtherCompanies, setShowOtherCompanies] = useState(false)
 
   const openModal = (company) => setOpenCompany(company)
   const closeModal = () => setOpenCompany(null)
@@ -136,53 +138,45 @@ export default function Result() {
           </div>
 
           <div className="mt-10">
-            <div className="grid gap-4 lg:grid-cols-2">
-              {result.recommendedCompanies.map((company) => (
-                <div key={company.name} className="rounded-[2rem] border border-slate-200 bg-slate-50 p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-500">{company.name}</p>
-                      <h3 className="mt-3 text-xl font-semibold text-slate-950">{company.reason}</h3>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white">総合適合度 {company.overallFit}点</div>
-                      <button onClick={() => openModal(company)} className="rounded-full bg-white/80 px-3 py-2 text-sm border">企業詳細</button>
-                    </div>
-                  </div>
-                  <div className="mt-5 grid gap-3">
-                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
-                      <p className="text-sm font-semibold text-slate-900">推薦理由</p>
-                      <p className="mt-2 leading-6">{company.recommendation}</p>
-                    </div>
-                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
-                      <p className="text-sm font-semibold text-slate-900">注意点</p>
-                      <p className="mt-2 leading-6">{company.caution}</p>
-                    </div>
-                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
-                      <p className="text-sm font-semibold text-slate-900">一致した条件</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {company.matchedConditions.map((condition) => (
-                          <span key={condition} className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-                            ✓ {condition}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="rounded-3xl bg-white p-5 text-sm text-slate-700 shadow-sm">
-                      <p className="text-sm font-semibold text-slate-900">スコア内訳</p>
-                      <div className="mt-3 space-y-3">
-                        {company.scoreBreakdown.map((item) => (
-                          <div key={item.label} className="grid grid-cols-[1fr_auto] items-center gap-3">
-                            <span className="text-sm text-slate-600">{item.label}</span>
-                            <span className="text-sm font-semibold text-slate-950">{item.value}点</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.24em] text-slate-500">おすすめ企業ランキング</p>
+                <h2 className="mt-3 text-2xl font-semibold text-slate-950">上位5社の企業候補</h2>
+                <p className="mt-2 text-sm text-slate-600">表示は上位5社までに絞り、100社以上の候補から特に合う企業を厳選しています。</p>
+              </div>
+              <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+                {showOtherCompanies ? '6〜20位候補を閉じる' : 'その他の候補企業を見る'}
+              </button>
+            </div>
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              {result.recommendedCompanies.map((company, index) => (
+                <CompanyCard key={company.name} company={company} rank={index + 1} onDetail={openModal} />
               ))}
             </div>
+            {showOtherCompanies && (
+              <div className="mt-6 rounded-[2rem] border border-slate-200 bg-slate-50 p-6 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.24em] text-slate-500">その他の候補企業</p>
+                    <p className="mt-1 text-sm text-slate-600">6位〜20位までの候補を一覧表示します。</p>
+                  </div>
+                </div>
+                <div className="mt-6 grid gap-4">
+                  {result.otherCompanies.map((company, index) => (
+                    <div key={company.name} className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">{index + 6}. {company.name}</p>
+                        <p className="mt-2 text-sm text-slate-600">{company.recommendation}</p>
+                      </div>
+                      <div className="flex flex-col items-start gap-3 sm:items-end">
+                        <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">{company.overallFit}%</span>
+                        <button onClick={() => openModal(company)} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition hover:bg-slate-100">詳細</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <CompanyModal open={!!openCompany} onClose={closeModal} company={openCompany} />
@@ -200,10 +194,10 @@ export default function Result() {
             </div>
             <div className="mt-6 overflow-hidden rounded-[1.75rem] bg-white">
               <Suspense fallback={<div className="p-6">読み込み中...</div>}>
-                <StarGrid companies={result.comparison} metrics={['成長環境', '裁量', '安定性', 'カルチャー適合', '総合適性']} highlighted={highlightedMetric} />
+                <StarGrid companies={result.comparison} metrics={['年収', '成長環境', '裁量', '安定性', 'カルチャー適合', '働き方適合']} highlighted={highlightedMetric} />
               </Suspense>
               <div className="mt-4 flex flex-wrap gap-2">
-                {['成長環境', '裁量', '安定性', 'カルチャー適合', '総合適性'].map((m) => (
+                {['年収', '成長環境', '裁量', '安定性', 'カルチャー適合', '働き方適合'].map((m) => (
                   <button key={m} onClick={() => setHighlightedMetric(highlightedMetric === m ? '' : m)} className={`rounded-full px-3 py-2 text-sm ${highlightedMetric === m ? 'bg-sky-500 text-white' : 'bg-slate-100'}`}>{m}</button>
                 ))}
               </div>
