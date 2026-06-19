@@ -69,6 +69,8 @@ export default function Result() {
   const form = location.state || DEFAULT_FORM
   const result = useMemo(() => analyzeCareerProfile(form), [form])
   const [aiInsights, setAiInsights] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
   const [openCompany, setOpenCompany] = useState(null)
   const [openMarket, setOpenMarket] = useState(false)
   const [highlightedMetric, setHighlightedMetric] = useState('')
@@ -77,13 +79,23 @@ export default function Result() {
   useEffect(() => {
     let active = true
     setAiInsights(null)
+    setAiError('')
+    setAiLoading(true)
 
     generateCompanyInsights(form, result.recommendedCompanies, result)
       .then((response) => {
-        if (active) setAiInsights(response)
+        console.log('generateCompanyInsights response:', response)
+        if (active) {
+          setAiInsights(response)
+          setAiLoading(false)
+        }
       })
       .catch(() => {
-        if (active) setAiInsights({ provider: 'mock', summary: 'AI推薦理由の生成に失敗しました。', companies: [] })
+        if (active) {
+          setAiInsights(null)
+          setAiError('AI分析を取得できませんでした')
+          setAiLoading(false)
+        }
       })
 
     return () => {
@@ -197,7 +209,7 @@ export default function Result() {
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500">おすすめ企業ランキング</p>
                 <h2 className="mt-3 text-2xl font-semibold text-slate-950">上位5社の企業候補</h2>
                 <p className="mt-2 text-sm text-slate-600">表示は上位5社までに絞り、100社以上の候補から特に合う企業を厳選しています。</p>
-                <p className="mt-2 text-xs text-slate-500">{aiInsights?.summary || 'AI推薦理由を生成中...'}</p>
+                <p className="mt-2 text-xs text-slate-500">{aiLoading ? 'AI分析中...' : aiError || aiInsights?.aiSummary || aiInsights?.summary || 'AI分析中...'}</p>
               </div>
               <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
                 {showOtherCompanies ? '6〜20位候補を閉じる' : 'その他の候補企業を見る'}
@@ -233,6 +245,67 @@ export default function Result() {
               </div>
             )}
           </div>
+
+          <section className="mt-10 rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm uppercase tracking-[0.24em] text-slate-500">AI分析サマリー</p>
+                <p className="mt-2 text-sm text-slate-600">Lambda Function から取得したAI分析結果を表示します。</p>
+              </div>
+            </div>
+
+            {aiLoading && (
+              <div className="mt-6 rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm font-medium text-slate-600">
+                AI分析中...
+              </div>
+            )}
+
+            {!aiLoading && aiError && (
+              <div className="mt-6 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-700">
+                AI分析を取得できませんでした
+              </div>
+            )}
+
+            {!aiLoading && !aiError && aiInsights && (
+              <div className="mt-6 grid gap-6">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">aiSummary</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">{aiInsights.aiSummary || aiInsights.summary || 'AIサマリーはありません。'}</p>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                    <p className="text-sm font-semibold text-slate-900">riskAnalysis</p>
+                    <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
+                      {(aiInsights.riskAnalysis || []).length > 0 ? (aiInsights.riskAnalysis || []).map((item) => (
+                        <li key={item}>- {item}</li>
+                      )) : <li>リスク分析はありません。</li>}
+                    </ul>
+                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                    <p className="text-sm font-semibold text-slate-900">nextActions</p>
+                    <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
+                      {(aiInsights.nextActions || []).length > 0 ? (aiInsights.nextActions || []).map((item) => (
+                        <li key={item}>- {item}</li>
+                      )) : <li>次アクションはありません。</li>}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">companyInsights</p>
+                  <div className="mt-4 grid gap-3">
+                    {(aiInsights.companyInsights || aiInsights.companies || []).length > 0 ? (aiInsights.companyInsights || aiInsights.companies || []).map((item) => (
+                      <div key={item.companyName} className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">{item.companyName}</p>
+                        <p className="mt-1 text-sm text-slate-600">{item.summary || item.recommendationTitle || '概要なし'}</p>
+                      </div>
+                    )) : <p className="text-sm text-slate-600">企業別インサイトはありません。</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
 
           <CompanyModal open={!!selectedCompany} onClose={closeModal} company={selectedCompany} />
           <MarketValueModal open={openMarket} onClose={() => setOpenMarket(false)} form={form} result={result} />
