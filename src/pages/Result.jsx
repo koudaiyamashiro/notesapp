@@ -35,6 +35,35 @@ function ProgressBar({ value }) {
   )
 }
 
+function getMarketRank(score) {
+  if (score >= 85) return 'A'
+  if (score >= 75) return 'B+'
+  if (score >= 65) return 'B'
+  return 'C'
+}
+
+function getPercentileText(score) {
+  const top = Math.max(10, Math.min(45, 100 - Math.round(score * 0.9)))
+  return `上位${top}%`
+}
+
+function getSalaryProjection(income) {
+  const map = {
+    '200未満': { current: '200万未満', y3: '300万〜450万円', y5: '450万〜600万円' },
+    '200-300': { current: '200万〜300万円', y3: '350万〜500万円', y5: '500万〜700万円' },
+    '300-400': { current: '300万〜400万円', y3: '450万〜600万円', y5: '600万〜800万円' },
+    '400-500': { current: '400万〜500万円', y3: '550万〜700万円', y5: '700万〜900万円' },
+    '500-600': { current: '500万〜600万円', y3: '650万〜800万円', y5: '800万〜1000万円' },
+    '600-700': { current: '600万〜700万円', y3: '750万〜900万円', y5: '900万〜1100万円' },
+    '700-800': { current: '700万〜800万円', y3: '850万〜1000万円', y5: '1000万〜1200万円' },
+    '800-900': { current: '800万〜900万円', y3: '900万〜1100万円', y5: '1100万〜1300万円' },
+    '900-1000': { current: '900万〜1000万円', y3: '1000万〜1200万円', y5: '1200万〜1400万円' },
+    '1000-1200': { current: '1000万〜1200万円', y3: '1100万〜1300万円', y5: '1300万〜1600万円' },
+    '1200以上': { current: '1200万円以上', y3: '1300万〜1600万円', y5: '1500万〜1800万円' },
+  }
+  return map[String(income)] || { current: '600万〜800万円', y3: '750万〜950万円', y5: '900万〜1150万円' }
+}
+
 function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
   return baseCompanies.map((company) => {
     const aiCompany = aiCompanies.find((item) => item.companyName === company.name)
@@ -108,6 +137,20 @@ export default function Result() {
     [aiInsights?.companies, result.recommendedCompanies]
   )
 
+  const marketValueCard = useMemo(() => {
+    const score = Number(aiInsights?.marketValue?.score || result.score || 0)
+    const rank = getMarketRank(score)
+    const percentile = aiInsights?.marketValue?.percentile || getPercentileText(score)
+    const fallbackSalary = getSalaryProjection(form.income)
+    const salary = {
+      ...fallbackSalary,
+      current: aiInsights?.marketValue?.currentEstimatedSalaryRange || fallbackSalary.current,
+      y3: aiInsights?.marketValue?.threeYearSalaryRange || fallbackSalary.y3,
+      y5: aiInsights?.marketValue?.fiveYearSalaryRange || fallbackSalary.y5,
+    }
+    return { score, rank, percentile, salary }
+  }, [aiInsights?.marketValue, form.income, result.score])
+
   const selectedCompany = openCompany
 
   const openModal = (company) => setOpenCompany(company)
@@ -137,25 +180,41 @@ export default function Result() {
           </div>
 
           <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.95fr]">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-slate-500">市場価値スコア</p>
-                  <p className="mt-4 text-5xl font-semibold text-slate-950">{result.score}</p>
+                  <p className="mt-4 text-5xl font-semibold text-slate-950">{marketValueCard.score}</p>
                 </div>
                 <div className="rounded-[1.5rem] bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700">{form.role || '職種未設定'}</div>
               </div>
-              <div className="mt-8 grid gap-3">
-                {result.insights.map((insight, index) => (
-                  <div key={index} className="rounded-3xl bg-slate-50 px-5 py-4">
-                    <p className="text-sm text-slate-700">{insight}</p>
-                  </div>
-                ))}
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs text-slate-500">市場価値ランク</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900">{marketValueCard.rank}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs text-slate-500">市場価値順位</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900">{marketValueCard.percentile}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs text-slate-500">推定年収レンジ</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{marketValueCard.salary.current}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs text-slate-500">3年後想定年収</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{marketValueCard.salary.y3}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                  <p className="text-xs text-slate-500">5年後想定年収</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{marketValueCard.salary.y5}</p>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">スキルレーダー</p>
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
+              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">市場価値比較レーダー</p>
               <Suspense fallback={<div className="mt-6 h-[360px] flex items-center justify-center">読み込み中...</div>}>
                 <RadarWrapper data={result.radarData} />
               </Suspense>

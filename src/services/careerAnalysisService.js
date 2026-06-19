@@ -84,19 +84,37 @@ function scoreForIndustry(desiredIndustries, target) {
   return hasTarget ? 92 : 78
 }
 
+function buildRadarBenchmark(role) {
+  const normalizedRole = normalizeText(role)
+  if (normalizedRole.includes('エンジニア')) {
+    return { specialization: 74, execution: 66, analytics: 72, communication: 60, management: 58, growth: 68 }
+  }
+  if (normalizedRole.includes('マーケ')) {
+    return { specialization: 68, execution: 68, analytics: 66, communication: 64, management: 57, growth: 67 }
+  }
+  if (normalizedRole.includes('営業')) {
+    return { specialization: 64, execution: 70, analytics: 58, communication: 72, management: 60, growth: 66 }
+  }
+  if (normalizedRole.includes('コンサル')) {
+    return { specialization: 71, execution: 69, analytics: 70, communication: 67, management: 62, growth: 70 }
+  }
+  return { specialization: 66, execution: 65, analytics: 62, communication: 63, management: 58, growth: 64 }
+}
+
 function buildRadarData(form) {
   const role = normalizeText(form.role)
   const strengths = Array.isArray(form.strengths) ? form.strengths : []
   const hasData = strengths.some((s) => normalizeText(s).includes('データ') || normalizeText(s).includes('ai'))
   const hasCommunicate = strengths.some((option) => ['プレゼン', '顧客折衝', 'ファシリテーション'].some((k) => normalizeText(option).includes(normalizeText(k))))
   const hasManage = ['主任', '係長', '課長', '部長', '執行役員', '経営層'].includes(form.level)
+  const benchmark = buildRadarBenchmark(form.role)
   return [
-    { subject: '専門性', A: Math.min(100, 60 + (role.includes('エンジニア') ? 18 : role.includes('マーケティング') ? 12 : 8) + (hasData ? 6 : 0)), fullMark: 100 },
-    { subject: '推進力', A: Math.min(100, 58 + (strengths.includes('新規開拓') ? 12 : includesIn(form.purpose, '裁量') ? 8 : 4)), fullMark: 100 },
-    { subject: '分析力', A: Math.min(100, 54 + (hasData ? 18 : strengths.includes('資料作成') ? 8 : 4)), fullMark: 100 },
-    { subject: 'コミュニケーション', A: Math.min(100, 56 + (hasCommunicate ? 16 : 6)), fullMark: 100 },
-    { subject: 'マネジメント', A: Math.min(100, 50 + (hasManage ? 20 : 6) + (form.level === 'マネージャー' ? 6 : 0)), fullMark: 100 },
-    { subject: '成長意欲', A: Math.min(100, 62 + Math.min(Number(form.experience) * 2, 18) + (includesIn(form.purpose, '成長') ? 8 : 0)), fullMark: 100 },
+    { subject: '専門性', A: Math.min(100, 60 + (role.includes('エンジニア') ? 18 : role.includes('マーケティング') ? 12 : 8) + (hasData ? 6 : 0)), B: benchmark.specialization, fullMark: 100 },
+    { subject: '推進力', A: Math.min(100, 58 + (strengths.includes('新規開拓') ? 12 : includesIn(form.purpose, '裁量') ? 8 : 4)), B: benchmark.execution, fullMark: 100 },
+    { subject: '分析力', A: Math.min(100, 54 + (hasData ? 18 : strengths.includes('資料作成') ? 8 : 4)), B: benchmark.analytics, fullMark: 100 },
+    { subject: 'コミュニケーション', A: Math.min(100, 56 + (hasCommunicate ? 16 : 6)), B: benchmark.communication, fullMark: 100 },
+    { subject: 'マネジメント', A: Math.min(100, 50 + (hasManage ? 20 : 6) + (form.level === 'マネージャー' ? 6 : 0)), B: benchmark.management, fullMark: 100 },
+    { subject: '成長意欲', A: Math.min(100, 62 + Math.min(Number(form.experience) * 2, 18) + (includesIn(form.purpose, '成長') ? 8 : 0)), B: benchmark.growth, fullMark: 100 },
   ]
 }
 
