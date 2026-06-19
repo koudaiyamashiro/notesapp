@@ -278,6 +278,102 @@ export default function Result() {
             {!aiLoading && !aiError && aiInsights && (
               <div className="mt-6 grid gap-6">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">AIキャリア戦略レポート</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">{aiInsights.aiSummary || aiInsights.summary || 'AIサマリーはありません。'}</p>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">キャリアタイプ</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">{aiInsights.careerArchetype?.type || '未設定'}</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">{aiInsights.careerArchetype?.summary || '概要なし'}</p>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Strengths</p>
+                      <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                        {(aiInsights.careerArchetype?.strengths || []).length > 0 ? (aiInsights.careerArchetype?.strengths || []).map((item) => <li key={item}>- {item}</li>) : <li>- なし</li>}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Risks</p>
+                      <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                        {(aiInsights.careerArchetype?.risks || []).length > 0 ? (aiInsights.careerArchetype?.risks || []).map((item) => <li key={item}>- {item}</li>) : <li>- なし</li>}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">市場価値</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">score</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.score ?? '-'}</p></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">percentile</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.percentile || '-'}</p></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">current</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.currentEstimatedSalaryRange || '-'}</p></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">3 years</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.threeYearSalaryRange || '-'}</p></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">5 years</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.fiveYearSalaryRange || '-'}</p></div>
+                  </div>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{aiInsights.marketValue?.evaluation || '評価情報なし'}</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5 text-xs text-slate-600">
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">skillRarity: {aiInsights.marketValue?.breakdown?.skillRarity ?? '-'}</div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">industryDemand: {aiInsights.marketValue?.breakdown?.industryDemand ?? '-'}</div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">transferability: {aiInsights.marketValue?.breakdown?.transferability ?? '-'}</div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">managementPotential: {aiInsights.marketValue?.breakdown?.managementPotential ?? '-'}</div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">growthPotential: {aiInsights.marketValue?.breakdown?.growthPotential ?? '-'}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">キャリアシナリオ</p>
+                  <div className="mt-4 grid gap-3">
+                    {(aiInsights.careerScenarios || []).length > 0 ? (aiInsights.careerScenarios || []).map((scenario) => (
+                      <div key={scenario.title} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">{scenario.title}</p>
+                        <p className="mt-1 text-xs text-slate-600">{scenario.targetRole} / {scenario.targetIndustry}</p>
+                        <p className="mt-1 text-xs text-slate-600">{scenario.expectedSalaryRange} | {scenario.timeline}</p>
+                        <p className="mt-2 text-sm text-slate-600">{scenario.reason}</p>
+                        <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                          {(scenario.requiredActions || []).map((item) => <li key={item}>- {item}</li>)}
+                        </ul>
+                      </div>
+                    )) : <p className="text-sm text-slate-600">シナリオはありません。</p>}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">企業別攻略レポート</p>
+                  <div className="mt-4 grid gap-3">
+                    {(aiInsights.companyStrategyReports || []).length > 0 ? (aiInsights.companyStrategyReports || []).map((report) => (
+                      <div key={report.companyName} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{report.companyName}</p>
+                          <span className="text-xs font-semibold text-blue-700">fitScore: {report.fitScore}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">expectedRole: {report.expectedRole}</p>
+                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">recommendationReason</p>
+                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.recommendationReason || []).map((item) => <li key={item}>- {item}</li>)}</ul>
+                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">concernPoints</p>
+                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.concernPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
+                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">interviewAppealPoints</p>
+                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.interviewAppealPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
+                        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">preparationActions</p>
+                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.preparationActions || []).map((item) => <li key={item}>- {item}</li>)}</ul>
+                        <p className="mt-2 text-xs text-slate-600">estimatedOfferProbability: {report.estimatedOfferProbability}</p>
+                      </div>
+                    )) : <p className="text-sm text-slate-600">企業別レポートはありません。</p>}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">キャリアロードマップ</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next1Month</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next1Month || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next3Months</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next3Months || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next6Months</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next6Months || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next1Year</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next1Year || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next3Years</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next3Years || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
                   <p className="text-sm font-semibold text-slate-900">aiSummary</p>
                   <p className="mt-2 text-sm leading-7 text-slate-600">{aiInsights.aiSummary || aiInsights.summary || 'AIサマリーはありません。'}</p>
                 </div>
@@ -312,6 +408,8 @@ export default function Result() {
                     )) : <p className="text-sm text-slate-600">企業別インサイトはありません。</p>}
                   </div>
                 </div>
+
+                <p className="text-[11px] text-slate-400">AI Source: {aiInsights.debugSource || 'mock'}</p>
               </div>
             )}
           </section>

@@ -216,6 +216,36 @@ function normalizeAiResponse(response, profile, topCompanies) {
   console.log('AI raw response', response)
 
   const companies = (response.companies || response.companyInsights || []).map((company, index) => normalizeCompanyInsight(company, index))
+  const careerArchetype = response.careerArchetype || {
+    type: '実行推進型ストラテジスト',
+    summary: '課題整理と実行推進のバランスで成果を出しやすいタイプです。',
+    strengths: [],
+    risks: [],
+  }
+  const marketValue = response.marketValue || {
+    score: 70,
+    percentile: '上位30%前後（推定）',
+    currentEstimatedSalaryRange: '700万〜900万円（目安）',
+    threeYearSalaryRange: '850万〜1050万円（目安）',
+    fiveYearSalaryRange: '950万〜1200万円（目安）',
+    evaluation: '入力情報に基づく推定です。',
+    breakdown: {
+      skillRarity: 70,
+      industryDemand: 70,
+      transferability: 70,
+      managementPotential: 65,
+      growthPotential: 75,
+    },
+  }
+  const careerScenarios = Array.isArray(response.careerScenarios) ? response.careerScenarios : []
+  const companyStrategyReports = Array.isArray(response.companyStrategyReports) ? response.companyStrategyReports : []
+  const careerRoadmap = response.careerRoadmap || {
+    next1Month: [],
+    next3Months: [],
+    next6Months: [],
+    next1Year: [],
+    next3Years: [],
+  }
   return {
     debugVersion: response.debugVersion || '2026-06-19-debug-v1',
     debugSource: response.debugSource || 'mock',
@@ -230,6 +260,11 @@ function normalizeAiResponse(response, profile, topCompanies) {
     companies,
     riskAnalysis: response.riskAnalysis || [],
     nextActions: response.nextActions || [],
+    careerArchetype,
+    marketValue,
+    careerScenarios,
+    companyStrategyReports,
+    careerRoadmap,
     topCompanies,
   }
 }
@@ -276,6 +311,55 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
       'サーバー側でプロンプト整形とレスポンス整形を行う',
       'クライアントはこの Function のみを呼び出す',
     ],
+    careerArchetype: {
+      type: '実行推進型ストラテジスト',
+      summary: '課題整理から実行までをつなぐ強みがあり、事業インパクトを作る役割と相性が良い傾向です。',
+      strengths: ['課題整理', '要件定義', 'プロジェクト推進'],
+      risks: ['短期成果圧力が高い環境では、優先順位の揺れが負荷になりやすいです。'],
+    },
+    marketValue: {
+      score: 72,
+      percentile: '上位25%前後（推定）',
+      currentEstimatedSalaryRange: '700万〜900万円（目安）',
+      threeYearSalaryRange: '850万〜1050万円（目安）',
+      fiveYearSalaryRange: '950万〜1250万円（目安）',
+      evaluation: '専門性と推進力の掛け合わせで市場価値を伸ばしやすい見立てです。',
+      breakdown: {
+        skillRarity: 72,
+        industryDemand: 74,
+        transferability: 78,
+        managementPotential: 67,
+        growthPotential: 80,
+      },
+    },
+    careerScenarios: [
+      {
+        title: '業務改革リード',
+        targetRole: 'DX企画 / 業務改革',
+        targetIndustry: 'SaaS / ITサービス',
+        expectedSalaryRange: '850万〜1100万円（目安）',
+        timeline: '1〜3年',
+        reason: '現職の推進経験と課題整理力の再現性を示しやすいためです。',
+        requiredActions: ['実績を定量で棚卸しする', 'KPI改善事例を職務経歴書に反映する'],
+      },
+    ],
+    companyStrategyReports: companies.map((company) => ({
+      companyName: company.companyName,
+      fitScore: Math.max(60, Number(company.scoreBreakdown?.[0]?.value || 75)),
+      expectedRole: normalizedProfile.role || '想定ポジション未設定',
+      recommendationReason: ['経験と役割要件の重なりが大きいと推定されます。'],
+      concernPoints: ['成果期待が高く、立ち上がり速度が問われる可能性があります。'],
+      interviewAppealPoints: ['直近の成果を数値で示し、再現プロセスを語ることが有効です。'],
+      preparationActions: ['想定質問に対するSTAR形式の回答を準備する'],
+      estimatedOfferProbability: '中（目安）',
+    })),
+    careerRoadmap: {
+      next1Month: ['実績の定量化と書類更新を完了する'],
+      next3Months: ['不足スキルを学習し、実務適用の証拠を作る'],
+      next6Months: ['希望領域に近い業務比率を増やす'],
+      next1Year: ['上位ロールでの成果責任を持つ'],
+      next3Years: ['事業成果に直結するポジションへ接続する'],
+    },
   }
 }
 

@@ -17,6 +17,53 @@ type CareerInsightsResponse = {
   companyInsights: Array<Record<string, unknown>>
   riskAnalysis: string[]
   nextActions: string[]
+  careerArchetype: {
+    type: string
+    summary: string
+    strengths: string[]
+    risks: string[]
+  }
+  marketValue: {
+    score: number
+    percentile: string
+    currentEstimatedSalaryRange: string
+    threeYearSalaryRange: string
+    fiveYearSalaryRange: string
+    evaluation: string
+    breakdown: {
+      skillRarity: number
+      industryDemand: number
+      transferability: number
+      managementPotential: number
+      growthPotential: number
+    }
+  }
+  careerScenarios: Array<{
+    title: string
+    targetRole: string
+    targetIndustry: string
+    expectedSalaryRange: string
+    timeline: string
+    reason: string
+    requiredActions: string[]
+  }>
+  companyStrategyReports: Array<{
+    companyName: string
+    fitScore: number
+    expectedRole: string
+    recommendationReason: string[]
+    concernPoints: string[]
+    interviewAppealPoints: string[]
+    preparationActions: string[]
+    estimatedOfferProbability: string
+  }>
+  careerRoadmap: {
+    next1Month: string[]
+    next3Months: string[]
+    next6Months: string[]
+    next1Year: string[]
+    next3Years: string[]
+  }
   userProfileSummary?: Record<string, unknown>
   analysisSnapshot?: Record<string, unknown>
 }
@@ -36,6 +83,16 @@ const CORS_HEADERS = {
 
 function asArray(value: unknown) {
   return Array.isArray(value) ? value : []
+}
+
+function asStringArray(value: unknown, max = 5) {
+  return asArray(value).filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, max)
+}
+
+function asSafeNumber(value: unknown, fallback: number, min = 0, max = 100) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return fallback
+  return Math.min(max, Math.max(min, Math.round(numeric)))
 }
 
 function safeText(value: unknown, maxLength = 120) {
@@ -216,6 +273,26 @@ function buildMockResponse(
       ? `normalize失敗 (responseType: ${responseType})`
       : ''
 
+  const profileSummary = pickProfileSummary(userProfile)
+  const companyStrategyReports = topCompanies.slice(0, 5).map((company, index) => {
+    const typedCompany = (company || {}) as Record<string, any>
+    const companyName = String(typedCompany.name || `Company ${index + 1}`)
+    const fitScore = asSafeNumber(typedCompany.overallFit ?? typedCompany.matchScore, 75, 40, 99)
+    return {
+      companyName,
+      fitScore,
+      expectedRole: String(profileSummary.role || 'ポジション未設定'),
+      recommendationReason: [
+        `${companyName}は現在の経験を活かしやすい業務領域がある可能性があります。`,
+        `希望する働き方との整合性を取りやすいと推定されます。`,
+      ],
+      concernPoints: [`役割期待値が高く、初期の立ち上がり速度が問われる可能性があります。`],
+      interviewAppealPoints: [`これまでの成果を数値で示し、再現性のある進め方を説明することが有効です。`],
+      preparationActions: [`想定業務に近い実績を3件に絞って、課題・打ち手・成果で整理してください。`],
+      estimatedOfferProbability: fitScore >= 85 ? '中〜高（目安）' : '中（目安）',
+    }
+  })
+
   return {
     debugVersion: DEBUG_VERSION,
     debugSource: 'mock',
@@ -233,11 +310,142 @@ function buildMockResponse(
       'サーバー側でプロンプト整形とレスポンス整形を行う',
       'クライアントはこの Function のみを呼び出す',
     ],
-    userProfileSummary: pickProfileSummary(userProfile),
+    careerArchetype: {
+      type: '実行推進型ストラテジスト',
+      summary: '課題を構造化して実行まで落とし込む力が強みで、企画と現場をつなぐ役割で価値を出しやすいタイプです。',
+      strengths: ['課題整理', '要件定義', '関係者調整'],
+      risks: ['短期成果圧力の強い環境では優先順位の揺れが負荷になりやすいです。'],
+    },
+    marketValue: {
+      score: asSafeNumber(analysisResult.score || analysisResult.rawScore, 72, 30, 99),
+      percentile: '上位25%前後（推定）',
+      currentEstimatedSalaryRange: '700万〜900万円（目安）',
+      threeYearSalaryRange: '850万〜1050万円（目安）',
+      fiveYearSalaryRange: '950万〜1250万円（目安）',
+      evaluation: '専門性と推進力のバランスが良く、業務改革・DX推進領域で市場価値が伸びる可能性があります。',
+      breakdown: {
+        skillRarity: 72,
+        industryDemand: 74,
+        transferability: 78,
+        managementPotential: 68,
+        growthPotential: 80,
+      },
+    },
+    careerScenarios: [
+      {
+        title: '業務改革リードシナリオ',
+        targetRole: 'DX企画 / 業務改革',
+        targetIndustry: 'SaaS / ITコンサル',
+        expectedSalaryRange: '850万〜1100万円（目安）',
+        timeline: '1〜3年',
+        reason: '現職での改善実績を横展開しやすく、再現性ある成果として評価される可能性が高いためです。',
+        requiredActions: ['改善実績を定量化する', 'KPI設計と運用経験を補強する'],
+      },
+      {
+        title: '事業企画接続シナリオ',
+        targetRole: '事業企画 / PMO',
+        targetIndustry: '人材 / メガベンチャー',
+        expectedSalaryRange: '800万〜1000万円（目安）',
+        timeline: '1〜2年',
+        reason: '関係者調整力と施策推進力を活かし、事業KPI改善の文脈で評価されやすいためです。',
+        requiredActions: ['事業指標の改善事例を作る', '部署横断プロジェクトの実績を増やす'],
+      },
+    ],
+    companyStrategyReports,
+    careerRoadmap: {
+      next1Month: ['実績棚卸しを行い、成果を定量化した職務経歴書の素案を作る'],
+      next3Months: ['希望職種に合わせた実績の再現性を示すポートフォリオを整備する'],
+      next6Months: ['不足スキル領域の学習を実務で検証し、成果事例を追加する'],
+      next1Year: ['より上位ポジションに必要なKPI責任範囲を担う'],
+      next3Years: ['事業成果責任を持つポジションへの接続を目指す'],
+    },
+    userProfileSummary: profileSummary,
     analysisSnapshot: {
       score: analysisResult.score || analysisResult.rawScore || '未設定',
       recommendedCompanies: topCompanies.length,
     },
+  }
+}
+
+function normalizeCareerArchetype(value: unknown) {
+  const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    type: String(source.type || '実行推進型ストラテジスト'),
+    summary: String(source.summary || '意思決定と実行をつなぐ役割で価値を出しやすいタイプです。'),
+    strengths: asStringArray(source.strengths, 6),
+    risks: asStringArray(source.risks, 6),
+  }
+}
+
+function normalizeMarketValue(value: unknown, analysisResult: Record<string, unknown>) {
+  const source = value && typeof value === 'object' ? (value as Record<string, any>) : {}
+  const breakdownSource = source.breakdown && typeof source.breakdown === 'object' ? source.breakdown : {}
+  return {
+    score: asSafeNumber(source.score, asSafeNumber(analysisResult.score || analysisResult.rawScore, 72, 30, 99), 30, 99),
+    percentile: String(source.percentile || '上位30%前後（推定）'),
+    currentEstimatedSalaryRange: String(source.currentEstimatedSalaryRange || '700万〜900万円（目安）'),
+    threeYearSalaryRange: String(source.threeYearSalaryRange || '850万〜1050万円（目安）'),
+    fiveYearSalaryRange: String(source.fiveYearSalaryRange || '950万〜1250万円（目安）'),
+    evaluation: String(source.evaluation || '強みの再現性を示せると市場価値が高まりやすいと推定されます。'),
+    breakdown: {
+      skillRarity: asSafeNumber(breakdownSource.skillRarity, 70),
+      industryDemand: asSafeNumber(breakdownSource.industryDemand, 72),
+      transferability: asSafeNumber(breakdownSource.transferability, 74),
+      managementPotential: asSafeNumber(breakdownSource.managementPotential, 68),
+      growthPotential: asSafeNumber(breakdownSource.growthPotential, 78),
+    },
+  }
+}
+
+function normalizeCareerScenarios(value: unknown) {
+  return asArray(value)
+    .slice(0, 4)
+    .map((item, index) => {
+      const source = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+      return {
+        title: String(source.title || `シナリオ${index + 1}`),
+        targetRole: String(source.targetRole || '未設定'),
+        targetIndustry: String(source.targetIndustry || '未設定'),
+        expectedSalaryRange: String(source.expectedSalaryRange || '未設定（目安）'),
+        timeline: String(source.timeline || '1〜3年'),
+        reason: String(source.reason || '入力情報に基づく仮説です。'),
+        requiredActions: asStringArray(source.requiredActions, 5),
+      }
+    })
+}
+
+function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[]) {
+  const byName = new Map(
+    asArray(value)
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => [String((item as Record<string, unknown>).companyName || ''), item as Record<string, unknown>])
+  )
+
+  return topCompanies.slice(0, 5).map((company, index) => {
+    const base = (company || {}) as Record<string, any>
+    const name = String(base.name || `Company ${index + 1}`)
+    const source = byName.get(name) || {}
+    return {
+      companyName: name,
+      fitScore: asSafeNumber((source as Record<string, unknown>).fitScore ?? base.overallFit ?? base.matchScore, 75, 40, 99),
+      expectedRole: String((source as Record<string, unknown>).expectedRole || '想定ポジション未設定'),
+      recommendationReason: asStringArray((source as Record<string, unknown>).recommendationReason, 4),
+      concernPoints: asStringArray((source as Record<string, unknown>).concernPoints, 4),
+      interviewAppealPoints: asStringArray((source as Record<string, unknown>).interviewAppealPoints, 4),
+      preparationActions: asStringArray((source as Record<string, unknown>).preparationActions, 4),
+      estimatedOfferProbability: String((source as Record<string, unknown>).estimatedOfferProbability || '中（目安）'),
+    }
+  })
+}
+
+function normalizeCareerRoadmap(value: unknown) {
+  const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    next1Month: asStringArray(source.next1Month, 6),
+    next3Months: asStringArray(source.next3Months, 6),
+    next6Months: asStringArray(source.next6Months, 6),
+    next1Year: asStringArray(source.next1Year, 6),
+    next3Years: asStringArray(source.next3Years, 6),
   }
 }
 
@@ -323,14 +531,64 @@ async function generateWithOpenAI(
     '      "reasons": ["string"],',
     '      "risks": ["string"]',
     '    }',
-    '  ]',
+    '  ],',
+    '  "careerArchetype": {',
+    '    "type": "string",',
+    '    "summary": "string",',
+    '    "strengths": ["string"],',
+    '    "risks": ["string"]',
+    '  },',
+    '  "marketValue": {',
+    '    "score": 0,',
+    '    "percentile": "string",',
+    '    "currentEstimatedSalaryRange": "string",',
+    '    "threeYearSalaryRange": "string",',
+    '    "fiveYearSalaryRange": "string",',
+    '    "evaluation": "string",',
+    '    "breakdown": {',
+    '      "skillRarity": 0,',
+    '      "industryDemand": 0,',
+    '      "transferability": 0,',
+    '      "managementPotential": 0,',
+    '      "growthPotential": 0',
+    '    }',
+    '  },',
+    '  "careerScenarios": [{',
+    '    "title": "string",',
+    '    "targetRole": "string",',
+    '    "targetIndustry": "string",',
+    '    "expectedSalaryRange": "string",',
+    '    "timeline": "string",',
+    '    "reason": "string",',
+    '    "requiredActions": ["string"]',
+    '  }],',
+    '  "companyStrategyReports": [{',
+    '    "companyName": "string",',
+    '    "fitScore": 0,',
+    '    "expectedRole": "string",',
+    '    "recommendationReason": ["string"],',
+    '    "concernPoints": ["string"],',
+    '    "interviewAppealPoints": ["string"],',
+    '    "preparationActions": ["string"],',
+    '    "estimatedOfferProbability": "string"',
+    '  }],',
+    '  "careerRoadmap": {',
+    '    "next1Month": ["string"],',
+    '    "next3Months": ["string"],',
+    '    "next6Months": ["string"],',
+    '    "next1Year": ["string"],',
+    '    "next3Years": ["string"]',
+    '  }',
     '}',
     '回答は必ず日本語で作成してください。',
     '単なる要約は禁止です。意思決定に使える具体性で記述してください。',
-    'aiSummaryには必ず次の要素を含めてください: 市場価値評価、現在の強み、弱み・注意点、キャリアリスク、3年後のキャリア仮説、5年後のキャリア仮説、企業比較。',
+    'aiSummaryには必ず次の要素を含めてください: 市場価値評価、年収レンジ、キャリア類型、向いている業界、向いている職種、弱み・注意点、キャリアリスク、3年後仮説、5年後仮説、企業比較。',
     'aiSummaryは最低1000文字相当の分量で、根拠と示唆を具体的に書いてください。',
     'companyInsightsの各企業について、reasonsは推薦理由を具体的に、risksは懸念点を具体的に記述してください。',
-    'nextActionsには今後90日で実行するアクションを時系列で記述してください。',
+    'companyStrategyReportsには企業別の推薦理由、懸念点、面接訴求ポイント、準備アクション、内定確率の目安を含めてください。',
+    'careerRoadmapには1ヶ月、3ヶ月、6ヶ月、1年、3年のアクションを含めてください。',
+    '年収や内定確率は保証ではなく推定・目安として表現し、断定しすぎないでください。',
+    '入力情報が少ない場合も、仮説として明示して出力してください。',
     'companyInsightsは入力のtopCompaniesに対応させてください。',
     'riskAnalysisとnextActionsはそれぞれ1件以上返してください。',
   ].join('\n')
@@ -488,6 +746,11 @@ async function generateWithOpenAI(
     riskAnalysis: riskAnalysis.length > 0 ? riskAnalysis.slice(0, 5) : ['リスク分析の生成に失敗しました。'],
     nextActions: nextActions.length > 0 ? nextActions.slice(0, 5) : ['次アクションの生成に失敗しました。'],
     companyInsights: companyInsights.map((company: Record<string, unknown>, index: number) => buildOpenAICompanyInsight(company, index)),
+    careerArchetype: normalizeCareerArchetype((parsed as Record<string, unknown>).careerArchetype),
+    marketValue: normalizeMarketValue((parsed as Record<string, unknown>).marketValue, analysisResult),
+    careerScenarios: normalizeCareerScenarios((parsed as Record<string, unknown>).careerScenarios),
+    companyStrategyReports: normalizeCompanyStrategyReports((parsed as Record<string, unknown>).companyStrategyReports, topCompanies),
+    careerRoadmap: normalizeCareerRoadmap((parsed as Record<string, unknown>).careerRoadmap),
     userProfileSummary: pickProfileSummary(userProfile),
     analysisSnapshot: {
       score: analysisResult.score || analysisResult.rawScore || '未設定',
