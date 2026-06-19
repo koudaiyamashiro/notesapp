@@ -484,7 +484,7 @@ export function analyzeCareerProfile(input = {}) {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5),
     roles,
-    recommendedCompanies: candidates,
+    recommendedCompanies: candidates.slice(0, 10),
     companyCandidates: candidates,
     comparison,
     roadmap: [
