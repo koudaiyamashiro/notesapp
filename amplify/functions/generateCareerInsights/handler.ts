@@ -4,6 +4,12 @@ type CareerInsightsRequest = {
   analysisResult?: Record<string, unknown>
 }
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'OPTIONS,POST',
+}
+
 function asArray(value: unknown) {
   return Array.isArray(value) ? value : []
 }
@@ -45,37 +51,64 @@ function buildCompanyInsight(company: Record<string, unknown>, index: number) {
   }
 }
 
-export async function handler(event: { body?: string } | CareerInsightsRequest = {}) {
-  const requestBody = 'body' in event && typeof event.body === 'string' ? JSON.parse(event.body || '{}') : event
-  const typedRequestBody = requestBody as CareerInsightsRequest
-  const userProfile = (typedRequestBody.userProfile || {}) as Record<string, unknown>
-  const topCompanies = asArray(typedRequestBody.topCompanies)
-  const analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
+export async function handler(event: { body?: string; requestContext?: { http?: { method?: string } } } | CareerInsightsRequest = {}) {
+  const method = 'requestContext' in event ? event.requestContext?.http?.method : undefined
 
-  const response = {
-    aiSummary: 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
-    companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company, index)),
-    riskAnalysis: [
-      '現時点ではモックなので、実際の外部AI推論は行っていません。',
-      '本番化時はサーバー側で OpenAI / Perplexity API を呼び出してください。',
-    ],
-    nextActions: [
-      '将来的に環境変数から AI API キーを読み込む',
-      'サーバー側でプロンプト整形とレスポンス整形を行う',
-      'クライアントはこの Function のみを呼び出す',
-    ],
-    userProfileSummary: pickProfileSummary(userProfile),
-    analysisSnapshot: {
-      score: analysisResult.score || analysisResult.rawScore || '未設定',
-      recommendedCompanies: topCompanies.length,
-    },
+  if (method === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      headers: {
+        ...CORS_HEADERS,
+      },
+      body: '',
+    }
   }
 
-  return {
-    statusCode: 200,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-    },
-    body: JSON.stringify(response),
+  try {
+    const requestBody = 'body' in event && typeof event.body === 'string' ? JSON.parse(event.body || '{}') : event
+    const typedRequestBody = requestBody as CareerInsightsRequest
+    const userProfile = (typedRequestBody.userProfile || {}) as Record<string, unknown>
+    const topCompanies = asArray(typedRequestBody.topCompanies)
+    const analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
+
+    const response = {
+      aiSummary: 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
+      companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company, index)),
+      riskAnalysis: [
+        '現時点ではモックなので、実際の外部AI推論は行っていません。',
+        '本番化時はサーバー側で OpenAI / Perplexity API を呼び出してください。',
+      ],
+      nextActions: [
+        '将来的に環境変数から AI API キーを読み込む',
+        'サーバー側でプロンプト整形とレスポンス整形を行う',
+        'クライアントはこの Function のみを呼び出す',
+      ],
+      userProfileSummary: pickProfileSummary(userProfile),
+      analysisSnapshot: {
+        score: analysisResult.score || analysisResult.rawScore || '未設定',
+        recommendedCompanies: topCompanies.length,
+      },
+    }
+
+    return {
+      statusCode: 200,
+      headers: {
+        ...CORS_HEADERS,
+        'content-type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify(response),
+    }
+  } catch (error) {
+    return {
+      statusCode: 400,
+      headers: {
+        ...CORS_HEADERS,
+        'content-type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify({
+        message: 'Invalid request payload',
+        error: error instanceof Error ? error.message : 'unknown_error',
+      }),
+    }
   }
 }
