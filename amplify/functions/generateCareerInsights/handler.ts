@@ -11,6 +11,7 @@ type CareerInsightsRequest = {
 type CareerInsightsResponse = {
   debugVersion: string
   debugSource: 'openai' | 'mock'
+  fallbackReason?: string | null
   aiSummary: string
   companyInsights: Array<Record<string, unknown>>
   riskAnalysis: string[]
@@ -82,11 +83,13 @@ function buildOpenAICompanyInsight(company: Record<string, unknown>, index: numb
 function buildMockResponse(
   userProfile: Record<string, unknown>,
   topCompanies: unknown[],
-  analysisResult: Record<string, unknown>
+  analysisResult: Record<string, unknown>,
+  fallbackReason: string
 ): CareerInsightsResponse {
   return {
     debugVersion: DEBUG_VERSION,
     debugSource: 'mock',
+    fallbackReason,
     aiSummary: 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
     companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company as Record<string, unknown>, index)),
     riskAnalysis: [
@@ -225,6 +228,7 @@ async function generateWithOpenAI(
   return {
     debugVersion: DEBUG_VERSION,
     debugSource: 'openai',
+    fallbackReason: null,
     aiSummary,
     riskAnalysis: riskAnalysis.length > 0 ? riskAnalysis.slice(0, 5) : ['リスク分析の生成に失敗しました。'],
     nextActions: nextActions.length > 0 ? nextActions.slice(0, 5) : ['次アクションの生成に失敗しました。'],
@@ -247,6 +251,7 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
       statusCode: 204,
       headers: {
         ...CORS_HEADERS,
+        'x-debug-version': DEBUG_VERSION,
       },
       body: '',
     }
@@ -262,6 +267,7 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     const apiKey = process.env.OPENAI_API_KEY || ''
     console.log('generateCareerInsights key status', { hasOpenAIKey: Boolean(apiKey) })
     let response: CareerInsightsResponse | null = null
+    let fallbackReason = ''
 
     if (apiKey) {
       console.log('generateCareerInsights OpenAI call start')
@@ -270,43 +276,70 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
         if (response) {
           console.log('generateCareerInsights OpenAI call success')
         } else {
+          fallbackReason = 'invalid_response'
           console.warn('generateCareerInsights OpenAI call failed', {
             status: 'invalid_response',
             message: 'OpenAI response could not be normalized',
           })
         }
       } catch (error) {
+        fallbackReason = 'openai_exception'
         console.warn('generateCareerInsights OpenAI call failed', {
           status: 'exception',
           message: error instanceof Error ? error.message : 'unknown_error',
         })
       }
+    } else {
+      fallbackReason = 'missing_openai_api_key'
     }
 
     if (!response) {
-      console.log('generateCareerInsights fallback', { fallbackToMock: true })
-      response = buildMockResponse(userProfile, topCompanies, analysisResult)
+      const resolvedFallbackReason = fallbackReason || 'unknown'
+      console.log('generateCareerInsights fallback', { fallbackToMock: true, fallbackReason: resolvedFallbackReason })
+      response = buildMockResponse(userProfile, topCompanies, analysisResult, resolvedFallbackReason)
     }
+
+    console.log('generateCareerInsights responsePreview', {
+      debugVersion: response.debugVersion,
+      debugSource: response.debugSource,
+      fallbackReason: response.fallbackReason || null,
+      aiSummaryPreview: String(response.aiSummary || '').slice(0, 100),
+    })
 
     return {
       statusCode: 200,
       headers: {
         ...CORS_HEADERS,
+        'x-debug-version': DEBUG_VERSION,
         'content-type': 'application/json; charset=utf-8',
       },
       body: JSON.stringify(response),
     }
   } catch (error) {
+    const errorResponse = {
+      debugVersion: DEBUG_VERSION,
+      debugSource: 'mock',
+      fallbackReason: 'request_parse_error',
+      aiSummary: '',
+      message: 'Invalid request payload',
+      error: error instanceof Error ? error.message : 'unknown_error',
+    }
+
+    console.log('generateCareerInsights responsePreview', {
+      debugVersion: errorResponse.debugVersion,
+      debugSource: errorResponse.debugSource,
+      fallbackReason: errorResponse.fallbackReason,
+      aiSummaryPreview: '',
+    })
+
     return {
       statusCode: 400,
       headers: {
         ...CORS_HEADERS,
+        'x-debug-version': DEBUG_VERSION,
         'content-type': 'application/json; charset=utf-8',
       },
-      body: JSON.stringify({
-        message: 'Invalid request payload',
-        error: error instanceof Error ? error.message : 'unknown_error',
-      }),
+      body: JSON.stringify(errorResponse),
     }
   }
 }

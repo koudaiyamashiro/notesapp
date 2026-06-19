@@ -213,10 +213,13 @@ async function callGenerateCareerInsights(payload) {
 function normalizeAiResponse(response, profile, topCompanies) {
   if (!response) return null
 
+  console.log('AI raw response', response)
+
   const companies = (response.companies || response.companyInsights || []).map((company, index) => normalizeCompanyInsight(company, index))
   return {
     debugVersion: response.debugVersion || '2026-06-19-debug-v1',
     debugSource: response.debugSource || 'mock',
+    fallbackReason: response.fallbackReason || '',
     provider: response.provider || 'remote',
     mode: response.mode || 'remote',
     generatedAt: response.generatedAt || new Date().toISOString(),
@@ -255,6 +258,7 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
   return {
     debugVersion: '2026-06-19-debug-v1',
     debugSource: 'mock',
+    fallbackReason: 'frontend_local_fallback',
     provider: 'mock',
     mode: 'mock',
     generatedAt: new Date().toISOString(),
