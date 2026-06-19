@@ -1,6 +1,7 @@
 declare const process: { env: Record<string, string | undefined> }
 
 const DEBUG_VERSION = '2026-06-19-debug-v1'
+const MAX_PROMPT_CHARS = 8000
 
 type CareerInsightsRequest = {
   userProfile?: Record<string, unknown>
@@ -20,7 +21,7 @@ type CareerInsightsResponse = {
   analysisSnapshot?: Record<string, unknown>
 }
 
-type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error' | 'openai_bad_request'
+type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error' | 'openai_bad_request' | 'openai_context_length'
 
 type OpenAIError = Error & {
   code: OpenAIErrorCode
@@ -35,6 +36,122 @@ const CORS_HEADERS = {
 
 function asArray(value: unknown) {
   return Array.isArray(value) ? value : []
+}
+
+function safeText(value: unknown, maxLength = 120) {
+  return String(value || '').slice(0, maxLength)
+}
+
+function toStringList(value: unknown, maxItems: number, maxLength = 80) {
+  return asArray(value)
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => safeText(item, maxLength))
+    .filter(Boolean)
+    .slice(0, maxItems)
+}
+
+function extractRecommendationReasons(company: Record<string, unknown>) {
+  const typedCompany = company as Record<string, any>
+  const fromCards = asArray(typedCompany.recommendationReasons?.reasonCards || typedCompany.reasonCards)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      const title = safeText((item as Record<string, unknown>).title, 60)
+      const detail = safeText((item as Record<string, unknown>).detail, 100)
+      return `${title}${title && detail ? ': ' : ''}${detail}`.trim()
+    })
+    .filter(Boolean)
+
+  const fromShort = toStringList(typedCompany.recommendationReasons?.shortReasons || typedCompany.shortReasons, 2, 120)
+  const fromDirect = toStringList(typedCompany.recommendationReasons, 2, 120)
+
+  return [...fromCards, ...fromShort, ...fromDirect].slice(0, 2)
+}
+
+function extractConcernPoints(company: Record<string, unknown>) {
+  const typedCompany = company as Record<string, any>
+  return toStringList(typedCompany.concernPoints || typedCompany.caution || typedCompany.cautionPoints, 1, 120)
+}
+
+function sanitizeCompanyForPrompt(company: Record<string, unknown>) {
+  const matchedConditions = toStringList(company.matchedConditions || company.conditionTags, 5, 60)
+  const recommendationReasons = extractRecommendationReasons(company)
+  const concernPoints = extractConcernPoints(company)
+  const numericScore = Number((company as Record<string, any>).matchScore ?? (company as Record<string, any>).overallFit ?? 0)
+
+  return {
+    name: safeText(company.name, 80),
+    industry: safeText(company.industry, 60),
+    matchScore: Number.isFinite(numericScore) ? Math.round(numericScore) : 0,
+    summary: safeText((company as Record<string, any>).summary || (company as Record<string, any>).recommendation, 220),
+    matchedConditions,
+    recommendationReasons: recommendationReasons.slice(0, 2),
+    concernPoints: concernPoints.slice(0, 1),
+  }
+}
+
+function sanitizeProfileForPrompt(userProfile: Record<string, unknown>) {
+  return {
+    role: safeText(userProfile.role, 40),
+    level: safeText(userProfile.level, 40),
+    experience: safeText(userProfile.experience, 20),
+    income: safeText(userProfile.income, 20),
+    workStyle: safeText(userProfile.workStyle, 40),
+    desiredIndustry: toStringList(userProfile.desiredIndustry, 3, 40),
+    purpose: toStringList(userProfile.purpose, 3, 60),
+    strengths: toStringList(userProfile.strengths, 3, 40),
+  }
+}
+
+function sanitizeAnalysisForPrompt(analysisResult: Record<string, unknown>) {
+  const typedAnalysis = analysisResult as Record<string, any>
+  const topIndustries = asArray(typedAnalysis.industries)
+    .slice(0, 3)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      return safeText((item as Record<string, unknown>).label, 40)
+    })
+    .filter(Boolean)
+
+  const topRoles = asArray(typedAnalysis.roles)
+    .slice(0, 3)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      return safeText((item as Record<string, unknown>).role, 40)
+    })
+    .filter(Boolean)
+
+  return {
+    score: safeText(typedAnalysis.score || typedAnalysis.rawScore, 20),
+    topIndustries,
+    topRoles,
+  }
+}
+
+function buildPromptPayload(
+  userProfile: Record<string, unknown>,
+  topCompanies: unknown[],
+  analysisResult: Record<string, unknown>,
+  strict = false
+) {
+  const companies = topCompanies
+    .slice(0, 5)
+    .map((company) => sanitizeCompanyForPrompt((company || {}) as Record<string, unknown>))
+    .map((company) => {
+      if (!strict) return company
+      return {
+        ...company,
+        summary: safeText(company.summary, 120),
+        matchedConditions: company.matchedConditions.slice(0, 3).map((item) => safeText(item, 40)),
+        recommendationReasons: company.recommendationReasons.slice(0, 2).map((item) => safeText(item, 80)),
+        concernPoints: company.concernPoints.slice(0, 1).map((item) => safeText(item, 80)),
+      }
+    })
+
+  return {
+    userProfile: sanitizeProfileForPrompt(userProfile),
+    topCompanies: companies,
+    analysisResult: sanitizeAnalysisForPrompt(analysisResult),
+  }
 }
 
 function pickProfileSummary(userProfile: Record<string, unknown> = {}) {
@@ -189,11 +306,7 @@ async function generateWithOpenAI(
   topCompanies: unknown[],
   analysisResult: Record<string, unknown>
 ): Promise<CareerInsightsResponse | null> {
-  const promptPayload = {
-    userProfile,
-    topCompanies,
-    analysisResult,
-  }
+  let promptPayload: any = buildPromptPayload(userProfile, topCompanies, analysisResult)
 
   const systemPrompt = [
     'あなたはキャリア分析アシスタントです。',
@@ -216,7 +329,49 @@ async function generateWithOpenAI(
     'riskAnalysisとnextActionsはそれぞれ1件以上返してください。',
   ].join('\n')
 
-  const userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
+  let userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
+  const fixedPromptLength = systemPrompt.length + userPrompt.length
+  if (fixedPromptLength > MAX_PROMPT_CHARS) {
+    promptPayload = buildPromptPayload(userProfile, topCompanies, analysisResult, true)
+    userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
+  }
+
+  let promptLength = systemPrompt.length + userPrompt.length
+  while (promptLength > MAX_PROMPT_CHARS && promptPayload.topCompanies.length > 1) {
+    promptPayload.topCompanies.pop()
+    userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
+    promptLength = systemPrompt.length + userPrompt.length
+  }
+
+  if (promptLength > MAX_PROMPT_CHARS) {
+    promptPayload = {
+      userProfile: {
+        role: safeText(userProfile.role, 20),
+        level: safeText(userProfile.level, 20),
+      },
+      topCompanies: promptPayload.topCompanies.slice(0, 1).map((company: any) => ({
+        name: safeText(company.name, 40),
+        industry: safeText(company.industry, 30),
+        matchScore: company.matchScore,
+        summary: safeText(company.summary, 60),
+        matchedConditions: asArray(company.matchedConditions).slice(0, 2).map((item) => safeText(item, 20)),
+        recommendationReasons: asArray(company.recommendationReasons).slice(0, 1).map((item) => safeText(item, 40)),
+        concernPoints: asArray(company.concernPoints).slice(0, 1).map((item) => safeText(item, 40)),
+      })),
+      analysisResult: {
+        score: safeText((analysisResult as Record<string, unknown>).score || (analysisResult as Record<string, unknown>).rawScore, 10),
+      },
+    }
+    userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
+    promptLength = systemPrompt.length + userPrompt.length
+  }
+
+  if (promptLength > MAX_PROMPT_CHARS) {
+    userPrompt = '入力データ: {"userProfile":{},"topCompanies":[],"analysisResult":{}}'
+    promptLength = systemPrompt.length + userPrompt.length
+  }
+
+  console.log('generateCareerInsights promptLength', { promptLength, maxPromptChars: MAX_PROMPT_CHARS })
 
   const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -245,13 +400,18 @@ async function generateWithOpenAI(
     }
 
     const errorInfo = parsedError?.error || {}
+    const errorCode = String(errorInfo?.code || '')
     console.warn('generateCareerInsights OpenAI error response', {
       status: openAIResponse.status,
       errorMessage: String(errorInfo?.message || ''),
       errorType: String(errorInfo?.type || ''),
-      errorCode: String(errorInfo?.code || ''),
+      errorCode,
       errorParam: String(errorInfo?.param || ''),
     })
+
+    if (errorCode === 'context_length_exceeded') {
+      throw createOpenAIError('openai_context_length', 'OpenAI request failed with context_length_exceeded', 'http_error')
+    }
 
     if (openAIResponse.status === 400) {
       throw createOpenAIError('openai_bad_request', 'OpenAI request failed with status 400', 'http_error')
@@ -369,7 +529,10 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
       } catch (error) {
         const typedError = error as Partial<OpenAIError>
         fallbackReason =
-          typedError.code === 'parse_error' || typedError.code === 'invalid_response' || typedError.code === 'openai_bad_request'
+          typedError.code === 'parse_error' ||
+          typedError.code === 'invalid_response' ||
+          typedError.code === 'openai_bad_request' ||
+          typedError.code === 'openai_context_length'
             ? typedError.code
             : 'openai_error'
         fallbackResponseType = typeof typedError.responseType === 'string' ? typedError.responseType : 'unknown'
