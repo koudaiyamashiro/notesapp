@@ -270,8 +270,8 @@ export default function Result() {
                 <p className="mt-2 text-sm text-slate-600">表示は上位5社までに絞り、100社以上の候補から特に合う企業を厳選しています。</p>
                 <p className="mt-2 text-xs text-slate-500">{aiLoading ? 'AI分析中...' : aiError || aiInsights?.aiSummary || aiInsights?.summary || 'AI分析中...'}</p>
               </div>
-              <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
-                {showOtherCompanies ? '6〜20位候補を閉じる' : 'その他の候補企業を見る'}
+              <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100">
+                {showOtherCompanies ? 'その他候補企業を閉じる ▲' : 'その他候補企業を見る ▼'}
               </button>
             </div>
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
@@ -295,8 +295,10 @@ export default function Result() {
                         <p className="mt-2 text-sm text-slate-600">{company.recommendation}</p>
                       </div>
                       <div className="flex flex-col items-start gap-3 sm:items-end">
-                        <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">{company.overallFit}%</span>
-                        <button onClick={() => openModal(company)} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition hover:bg-slate-100">詳細</button>
+                        <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">
+                          マッチ度 {company.overallFit}% ({Number(company.overallFit || 0) >= 80 ? '高' : Number(company.overallFit || 0) >= 65 ? '中' : '低'})
+                        </span>
+                        <button onClick={() => openModal(company)} className="inline-flex min-w-[120px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 transition hover:bg-slate-100">詳細を見る</button>
                       </div>
                     </div>
                   ))}

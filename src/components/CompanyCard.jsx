@@ -1,6 +1,8 @@
 export default function CompanyCard({ company, rank, onDetail }) {
   const reasonCards = company.recommendationReasons?.reasonCards || []
   const cautionPoints = Array.isArray(company.caution) ? company.caution : company.caution ? [company.caution] : []
+  const fitValue = Number(company.overallFit || 0)
+  const fitLevel = fitValue >= 80 ? '高' : fitValue >= 65 ? '中' : '低'
   return (
     <article tabIndex={0} className="group rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)] transition-transform transform hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-sky-100">
       <div className="flex items-start justify-between gap-4">
@@ -20,8 +22,8 @@ export default function CompanyCard({ company, rank, onDetail }) {
           )}
         </div>
         <div className="flex flex-col items-end gap-3">
-          <span className="inline-flex h-12 min-w-[3rem] items-center justify-center rounded-full bg-sky-500 px-4 text-sm font-semibold text-white shadow-sm">{company.overallFit}%</span>
-          <button onClick={() => onDetail(company)} className="rounded-full border border-slate-200 bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+          <span className="inline-flex items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm">マッチ度 {fitValue}% ({fitLevel})</span>
+          <button onClick={() => onDetail(company)} className="inline-flex min-w-[132px] items-center justify-center rounded-lg border border-slate-200 bg-slate-950 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
             詳細を見る
           </button>
         </div>
