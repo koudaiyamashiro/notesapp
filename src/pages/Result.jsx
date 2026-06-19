@@ -256,6 +256,7 @@ export default function Result() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500">AI分析サマリー</p>
+                <p className="mt-1 text-[11px] text-slate-400">frontendDebugVersion: 2026-06-19-frontend-v1</p>
                 <p className="mt-2 text-sm text-slate-600">Lambda Function から取得したAI分析結果を表示します。</p>
               </div>
             </div>
