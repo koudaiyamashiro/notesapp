@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-export default function MultiSelectTags({ label, description, icon, bgColor, selected, options, onToggle, onCustomAdd, placeholder = 'キーワードで検索...' }) {
+export default function MultiSelectTags({ label, description, icon, bgColor, selected, options, onToggle, onCustomAdd, placeholder = 'キーワードで検索...', hasError = false, errorMessage = '' }) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [customValue, setCustomValue] = useState('')
@@ -29,7 +29,7 @@ export default function MultiSelectTags({ label, description, icon, bgColor, sel
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className={`rounded-xl border bg-white p-4 ${hasError ? 'border-rose-400' : 'border-slate-200'}`}>
       <div className="flex-1">
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</h3>
         <p className="mt-1 text-sm text-slate-600">{description}</p>
@@ -120,6 +120,7 @@ export default function MultiSelectTags({ label, description, icon, bgColor, sel
             </div>
           )}
         </div>
+        {hasError && errorMessage && <p className="mt-2 text-xs text-rose-600">{errorMessage}</p>}
       </div>
     </div>
   )

@@ -24,6 +24,7 @@ function filterOptions(options, query) {
 }
 
 const AGE_OPTIONS = Array.from({ length: 65 - 18 + 1 }, (_, index) => 18 + index)
+const EXPERIENCE_OPTIONS = Array.from({ length: 40 }, (_, index) => ({ value: String(index + 1), label: `${index + 1}年` }))
 
 const ROLE_OPTIONS = [
   '営業',
@@ -118,6 +119,7 @@ export default function Assessment() {
   const [form, setForm] = useState(INITIAL_FORM)
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
+  const [missingFields, setMissingFields] = useState({})
 
   const strengthOptions = useMemo(() => STRENGTH_OPTIONS[form.role] || STRENGTH_OPTIONS['その他'], [form.role])
 
@@ -125,6 +127,7 @@ export default function Assessment() {
     const current = form[key] || []
     const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
     setForm({ ...form, [key]: next })
+    setMissingFields((prev) => ({ ...prev, [key]: false }))
     setError('')
   }
 
@@ -136,6 +139,7 @@ export default function Assessment() {
     } else {
       setForm({ ...form, [key]: value })
     }
+    setMissingFields((prev) => ({ ...prev, [key]: false }))
     setError('')
   }
 
@@ -144,8 +148,36 @@ export default function Assessment() {
     if (!trimmed) return
     const next = Array.from(new Set([...(form[key] || []), trimmed]))
     setForm({ ...form, [key]: next })
+    setMissingFields((prev) => ({ ...prev, [key]: false }))
     setter('')
     setError('')
+  }
+
+  const getStepMissingFields = (stepIndex) => {
+    if (stepIndex === 0) {
+      return {
+        age: !String(form.age).trim(),
+        role: !String(form.role).trim(),
+        level: !String(form.level).trim(),
+        experience: !String(form.experience).trim(),
+        income: !String(form.income).trim(),
+      }
+    }
+    if (stepIndex === 1) {
+      return {
+        strengths: !Array.isArray(form.strengths) || form.strengths.length === 0,
+        weaknesses: !Array.isArray(form.weaknesses) || form.weaknesses.length === 0,
+      }
+    }
+    if (stepIndex === 2) {
+      return {
+        purpose: !Array.isArray(form.purpose) || form.purpose.length === 0,
+        workStyle: !String(form.workStyle).trim(),
+        desiredIndustry: !Array.isArray(form.desiredIndustry) || form.desiredIndustry.length === 0,
+        idealFuture: !String(form.idealFuture).trim(),
+      }
+    }
+    return {}
   }
 
   const isStepComplete = (stepIndex) => {
@@ -164,12 +196,16 @@ export default function Assessment() {
   }
 
   const goNext = () => {
-    if (!isStepComplete(step)) {
-      setError('このステップの入力を全て完了してください。')
+    const missing = getStepMissingFields(step)
+    const hasMissing = Object.values(missing).some(Boolean)
+    if (hasMissing) {
+      setMissingFields(missing)
+      setError('')
       return
     }
     if (step < steps.length - 1) {
       setStep(step + 1)
+      setMissingFields({})
       setError('')
     }
   }
@@ -177,16 +213,21 @@ export default function Assessment() {
   const goBack = () => {
     if (step > 0) {
       setStep(step - 1)
+      setMissingFields({})
       setError('')
     }
   }
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    if (!isStepComplete(step)) {
-      setError('このステップの入力を全て完了してください。')
+    const missing = getStepMissingFields(step)
+    const hasMissing = Object.values(missing).some(Boolean)
+    if (hasMissing) {
+      setMissingFields(missing)
+      setError('')
       return
     }
+    setMissingFields({})
     navigate('/analysis', { state: form })
   }
 
@@ -244,58 +285,64 @@ export default function Assessment() {
                   <select
                     value={form.age === '' ? '' : String(form.age)}
                     onChange={handleChange('age')}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.age ? 'border-rose-400' : 'border-slate-300'}`}
                   >
                     <option value="">選択してください</option>
                     {AGE_OPTIONS.map((age) => (
                       <option key={age} value={age}>{age}歳</option>
                     ))}
                   </select>
+                  {missingFields.age && <p className="text-xs text-rose-600">選択してください</p>}
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
                   現在の職種
                   <select
                     value={form.role}
                     onChange={handleChange('role')}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.role ? 'border-rose-400' : 'border-slate-300'}`}
                   >
                     <option value="">選択してください</option>
                     {ROLE_OPTIONS.map((item) => (
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </select>
+                  {missingFields.role && <p className="text-xs text-rose-600">入力してください</p>}
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
                   職種レベル
                   <select
                     value={form.level}
                     onChange={handleChange('level')}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.level ? 'border-rose-400' : 'border-slate-300'}`}
                   >
                     <option value="">選択してください</option>
                     {LEVEL_OPTIONS.map((item) => (
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </select>
+                  {missingFields.level && <p className="text-xs text-rose-600">選択してください</p>}
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
                   経験年数
-                  <input
-                    type="number"
-                    min="0"
-                    max="50"
+                  <select
                     value={form.experience}
                     onChange={handleChange('experience')}
-                    placeholder="例: 5"
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
+                    className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.experience ? 'border-rose-400' : 'border-slate-300'}`}
+                  >
+                    <option value="">選択してください</option>
+                    {EXPERIENCE_OPTIONS.map((item) => (
+                      <option key={item.label} value={item.value}>{item.label}</option>
+                    ))}
+                    <option value="41">40年以上</option>
+                  </select>
+                  {missingFields.experience && <p className="text-xs text-rose-600">選択してください</p>}
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
                   年収レンジ
                   <select
                     value={form.income}
                     onChange={handleChange('income')}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.income ? 'border-rose-400' : 'border-slate-300'}`}
                   >
                     <option value="">選択してください</option>
                     <option value="200未満">200万円未満</option>
@@ -310,6 +357,7 @@ export default function Assessment() {
                     <option value="1000-1200">1000〜1200万円</option>
                     <option value="1200以上">1200万円以上</option>
                   </select>
+                  {missingFields.income && <p className="text-xs text-rose-600">選択してください</p>}
                 </label>
               </div>
             )}
@@ -323,6 +371,8 @@ export default function Assessment() {
                   options={Array.from(new Set(strengthOptions))}
                   onToggle={(item) => toggleChip('strengths', item)}
                   onCustomAdd={(val) => addCustomTag('strengths', val, () => {})}
+                  hasError={!!missingFields.strengths}
+                  errorMessage="入力してください"
                 />
 
                 <MultiSelectTags
@@ -332,6 +382,8 @@ export default function Assessment() {
                   options={WEAKNESS_OPTIONS}
                   onToggle={(item) => toggleChip('weaknesses', item)}
                   onCustomAdd={(val) => addCustomTag('weaknesses', val, () => {})}
+                  hasError={!!missingFields.weaknesses}
+                  errorMessage="入力してください"
                 />
               </div>
             )}
@@ -345,6 +397,8 @@ export default function Assessment() {
                   options={PURPOSE_OPTIONS}
                   onToggle={(item) => toggleChip('purpose', item)}
                   onCustomAdd={(val) => addCustomTag('purpose', val, () => {})}
+                  hasError={!!missingFields.purpose}
+                  errorMessage="入力してください"
                 />
 
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
@@ -352,13 +406,14 @@ export default function Assessment() {
                   <select
                     value={form.workStyle}
                     onChange={handleChange('workStyle')}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.workStyle ? 'border-rose-400' : 'border-slate-300'}`}
                   >
                     <option value="">選択してください</option>
                     {WORK_STYLE_OPTIONS.map((item) => (
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </select>
+                  {missingFields.workStyle && <p className="text-xs text-rose-600">選択してください</p>}
                 </label>
 
                 <MultiSelectTags
@@ -368,6 +423,8 @@ export default function Assessment() {
                   options={INDUSTRY_OPTIONS}
                   onToggle={(item) => toggleChip('desiredIndustry', item)}
                   onCustomAdd={(val) => addCustomTag('desiredIndustry', val, () => {})}
+                  hasError={!!missingFields.desiredIndustry}
+                  errorMessage="入力してください"
                 />
 
                 <label className="grid gap-2 text-sm font-medium text-slate-900">
@@ -376,8 +433,9 @@ export default function Assessment() {
                     value={form.idealFuture}
                     onChange={handleChange('idealFuture')}
                     placeholder="例: 事業責任者として組織を牽引したい"
-                    className="min-h-[110px] rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className={`min-h-[110px] rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.idealFuture ? 'border-rose-400' : 'border-slate-300'}`}
                   />
+                  {missingFields.idealFuture && <p className="text-xs text-rose-600">入力してください</p>}
                 </label>
               </div>
             )}

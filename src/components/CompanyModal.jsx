@@ -1,6 +1,15 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 
 export default function CompanyModal({ open, onClose, company }) {
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open])
+
   if (!open || !company) return null
   const reasonCards = company.recommendationReasons?.reasonCards || []
   const cautionPoints = Array.isArray(company.caution) ? company.caution : company.caution ? [company.caution] : []
@@ -8,8 +17,8 @@ export default function CompanyModal({ open, onClose, company }) {
   const careerPath = company.careerPathPreview || {}
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
-      <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="bg-slate-950 px-6 py-5 text-white">
+      <div className="w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
+        <div className="sticky top-0 z-10 bg-slate-950 px-6 py-5 text-white">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h3 className="text-2xl font-semibold">{company.name}</h3>
@@ -22,7 +31,7 @@ export default function CompanyModal({ open, onClose, company }) {
                 </div>
               )}
             </div>
-            <button onClick={onClose} className="rounded-full bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700">閉じる</button>
+            <button onClick={onClose} className="rounded-full bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700">×</button>
           </div>
         </div>
         <div className="p-6">
