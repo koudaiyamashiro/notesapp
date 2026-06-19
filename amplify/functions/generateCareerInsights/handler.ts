@@ -7,6 +7,7 @@ type CareerInsightsRequest = {
 }
 
 type CareerInsightsResponse = {
+  debugSource: 'openai' | 'mock'
   aiSummary: string
   companyInsights: Array<Record<string, unknown>>
   riskAnalysis: string[]
@@ -68,6 +69,7 @@ function buildMockResponse(
   analysisResult: Record<string, unknown>
 ): CareerInsightsResponse {
   return {
+    debugSource: 'mock',
     aiSummary: 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
     companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company as Record<string, unknown>, index)),
     riskAnalysis: [
@@ -161,6 +163,7 @@ async function generateWithOpenAI(
   }
 
   return {
+    debugSource: 'openai',
     aiSummary,
     riskAnalysis: riskAnalysis.length > 0 ? riskAnalysis : ['リスク分析の生成に失敗しました。'],
     nextActions: nextActions.length > 0 ? nextActions : ['次アクションの生成に失敗しました。'],
@@ -194,13 +197,31 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     const analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
 
     const apiKey = process.env.OPENAI_API_KEY || ''
+    console.log('generateCareerInsights key status', { hasOpenAIKey: Boolean(apiKey) })
     let response: CareerInsightsResponse | null = null
 
     if (apiKey) {
-      response = await generateWithOpenAI(apiKey, userProfile, topCompanies, analysisResult)
+      console.log('generateCareerInsights OpenAI call start')
+      try {
+        response = await generateWithOpenAI(apiKey, userProfile, topCompanies, analysisResult)
+        if (response) {
+          console.log('generateCareerInsights OpenAI call success')
+        } else {
+          console.warn('generateCareerInsights OpenAI call failed', {
+            status: 'invalid_response',
+            message: 'OpenAI response could not be normalized',
+          })
+        }
+      } catch (error) {
+        console.warn('generateCareerInsights OpenAI call failed', {
+          status: 'exception',
+          message: error instanceof Error ? error.message : 'unknown_error',
+        })
+      }
     }
 
     if (!response) {
+      console.log('generateCareerInsights fallback', { fallbackToMock: true })
       response = buildMockResponse(userProfile, topCompanies, analysisResult)
     }
 

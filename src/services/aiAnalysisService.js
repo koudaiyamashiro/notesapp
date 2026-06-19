@@ -197,6 +197,7 @@ function normalizeAiResponse(response, profile, topCompanies) {
 
   const companies = response.companies || response.companyInsights || []
   return {
+    debugSource: response.debugSource || 'mock',
     provider: response.provider || 'remote',
     mode: response.mode || 'remote',
     generatedAt: response.generatedAt || new Date().toISOString(),
@@ -233,6 +234,7 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
   const companies = topCompanies.map((company, index) => buildCompanyInsights(normalizedProfile, company, index, topCompanies.length))
 
   return {
+    debugSource: 'mock',
     provider: 'mock',
     mode: 'mock',
     generatedAt: new Date().toISOString(),

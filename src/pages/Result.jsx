@@ -210,6 +210,9 @@ export default function Result() {
                 <h2 className="mt-3 text-2xl font-semibold text-slate-950">上位5社の企業候補</h2>
                 <p className="mt-2 text-sm text-slate-600">表示は上位5社までに絞り、100社以上の候補から特に合う企業を厳選しています。</p>
                 <p className="mt-2 text-xs text-slate-500">{aiLoading ? 'AI分析中...' : aiError || aiInsights?.aiSummary || aiInsights?.summary || 'AI分析中...'}</p>
+                {!aiLoading && !aiError && aiInsights?.debugSource && (
+                  <p className="mt-1 text-[11px] text-slate-400">debugSource: {aiInsights.debugSource}</p>
+                )}
               </div>
               <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
                 {showOtherCompanies ? '6〜20位候補を閉じる' : 'その他の候補企業を見る'}
