@@ -64,6 +64,10 @@ type CareerInsightsResponse = {
     next1Year: string[]
     next3Years: string[]
   }
+  debug?: {
+    researchSource: 'tavily' | 'none'
+    researchedCompanyCount: number
+  }
   userProfileSummary?: Record<string, unknown>
   analysisSnapshot?: Record<string, unknown>
 }
@@ -75,6 +79,17 @@ type OpenAIError = Error & {
   responseType?: string
 }
 
+type CompanyResearchItem = {
+  companyName: string
+  researchSummary: string
+}
+
+type CompanyResearchMeta = {
+  researchSource: 'tavily' | 'none'
+  researchedCompanyCount: number
+  researchFallback: boolean
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
@@ -83,6 +98,98 @@ const CORS_HEADERS = {
 
 function asArray(value: unknown) {
   return Array.isArray(value) ? value : []
+}
+
+function compressResearchText(text: string, minLength = 300, maxLength = 500) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  if (normalized.length <= maxLength) return normalized
+  const clipped = normalized.slice(0, maxLength)
+  const lastStop = Math.max(clipped.lastIndexOf('。'), clipped.lastIndexOf('.'))
+  if (lastStop >= minLength) return clipped.slice(0, lastStop + 1)
+  return clipped
+}
+
+async function fetchCompanyResearchFromTavily(apiKey: string, companyName: string) {
+  const query = [
+    `${companyName} 会社概要`,
+    `${companyName} 主力プロダクト サービス`,
+    `${companyName} 注力領域 採用 求める人物像`,
+    `${companyName} 働き方 カルチャー`,
+    `${companyName} 直近ニュース プレスリリース`,
+    `${companyName} 想定リスク`,
+  ].join(' ')
+
+  const response = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query,
+      search_depth: 'basic',
+      max_results: 4,
+      include_answer: true,
+      include_raw_content: false,
+    }),
+  })
+
+  if (!response.ok) {
+    return ''
+  }
+
+  const payload = await response.json()
+  const answer = typeof payload?.answer === 'string' ? payload.answer : ''
+  const snippets = asArray(payload?.results)
+    .slice(0, 4)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      return safeText((item as Record<string, unknown>).content, 180)
+    })
+    .filter(Boolean)
+
+  return compressResearchText([answer, ...snippets].join(' '), 300, 500)
+}
+
+async function fetchTopCompanyResearch(tavilyApiKey: string, topCompanies: unknown[]) {
+  const companies = topCompanies.slice(0, 5).map((company, index) => {
+    const typed = (company || {}) as Record<string, unknown>
+    return {
+      companyName: String(typed.name || `Company ${index + 1}`),
+    }
+  })
+
+  console.log('companyResearchStart')
+
+  const settled = await Promise.allSettled(
+    companies.map(async (company) => {
+      const summary = await fetchCompanyResearchFromTavily(tavilyApiKey, company.companyName)
+      if (!summary) throw new Error('research_unavailable')
+      return {
+        companyName: company.companyName,
+        researchSummary: summary,
+      } as CompanyResearchItem
+    })
+  )
+
+  const companyResearch = settled
+    .filter((item): item is PromiseFulfilledResult<CompanyResearchItem> => item.status === 'fulfilled')
+    .map((item) => item.value)
+
+  const failedCount = settled.length - companyResearch.length
+  console.log('companyResearchSuccess', companyResearch.length)
+  console.log('companyResearchFailed', failedCount)
+  console.log('researchFallback', companyResearch.length === 0)
+
+  return {
+    companyResearch,
+    meta: {
+      researchSource: companyResearch.length > 0 ? 'tavily' : 'none',
+      researchedCompanyCount: companyResearch.length,
+      researchFallback: companyResearch.length === 0,
+    } as CompanyResearchMeta,
+  }
 }
 
 function asStringArray(value: unknown, max = 5) {
@@ -188,6 +295,7 @@ function buildPromptPayload(
   userProfile: Record<string, unknown>,
   topCompanies: unknown[],
   analysisResult: Record<string, unknown>,
+  companyResearch: CompanyResearchItem[],
   strict = false
 ) {
   const companies = topCompanies
@@ -208,6 +316,12 @@ function buildPromptPayload(
     userProfile: sanitizeProfileForPrompt(userProfile),
     topCompanies: companies,
     analysisResult: sanitizeAnalysisForPrompt(analysisResult),
+    companyResearch: companyResearch
+      .slice(0, 5)
+      .map((item) => ({
+        companyName: safeText(item.companyName, 80),
+        researchSummary: strict ? safeText(item.researchSummary, 320) : safeText(item.researchSummary, 500),
+      })),
   }
 }
 
@@ -266,7 +380,8 @@ function buildMockResponse(
   topCompanies: unknown[],
   analysisResult: Record<string, unknown>,
   fallbackReason: string,
-  responseType: string
+  responseType: string,
+  researchMeta: CompanyResearchMeta
 ): CareerInsightsResponse {
   const diagnosticSummary =
     fallbackReason === 'invalid_response' || fallbackReason === 'parse_error'
@@ -358,6 +473,10 @@ function buildMockResponse(
       next6Months: ['不足スキル領域の学習を実務で検証し、成果事例を追加する'],
       next1Year: ['より上位ポジションに必要なKPI責任範囲を担う'],
       next3Years: ['事業成果責任を持つポジションへの接続を目指す'],
+    },
+    debug: {
+      researchSource: researchMeta.researchSource,
+      researchedCompanyCount: researchMeta.researchedCompanyCount,
     },
     userProfileSummary: profileSummary,
     analysisSnapshot: {
@@ -512,9 +631,11 @@ async function generateWithOpenAI(
   apiKey: string,
   userProfile: Record<string, unknown>,
   topCompanies: unknown[],
-  analysisResult: Record<string, unknown>
+  analysisResult: Record<string, unknown>,
+  companyResearch: CompanyResearchItem[],
+  researchMeta: CompanyResearchMeta
 ): Promise<CareerInsightsResponse | null> {
-  let promptPayload: any = buildPromptPayload(userProfile, topCompanies, analysisResult)
+  let promptPayload: any = buildPromptPayload(userProfile, topCompanies, analysisResult, companyResearch)
 
   const systemPrompt = [
     'あなたは転職意思決定を支援するシニアキャリアコンサルタントです。',
@@ -586,6 +707,9 @@ async function generateWithOpenAI(
     'aiSummaryは最低1000文字相当の分量で、根拠と示唆を具体的に書いてください。',
     'companyInsightsの各企業について、reasonsは推薦理由を具体的に、risksは懸念点を具体的に記述してください。',
     'companyStrategyReportsには企業別の推薦理由、懸念点、面接訴求ポイント、準備アクション、内定確率の目安を含めてください。',
+    '入力のcompanyResearchを公開情報ベースの根拠として活用し、companyStrategyReportsを具体化してください。',
+    '抽象的な一般論は避け、企業ごとに推薦理由・懸念点・面接訴求ポイント・準備アクションを具体的に記述してください。',
+    '不確かな情報は断定せず「公開情報ベースでは」「可能性があります」と表現してください。',
     'careerRoadmapには1ヶ月、3ヶ月、6ヶ月、1年、3年のアクションを含めてください。',
     '年収や内定確率は保証ではなく推定・目安として表現し、断定しすぎないでください。',
     '入力情報が少ない場合も、仮説として明示して出力してください。',
@@ -596,7 +720,7 @@ async function generateWithOpenAI(
   let userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
   const fixedPromptLength = systemPrompt.length + userPrompt.length
   if (fixedPromptLength > MAX_PROMPT_CHARS) {
-    promptPayload = buildPromptPayload(userProfile, topCompanies, analysisResult, true)
+    promptPayload = buildPromptPayload(userProfile, topCompanies, analysisResult, companyResearch, true)
     userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
   }
 
@@ -751,6 +875,10 @@ async function generateWithOpenAI(
     careerScenarios: normalizeCareerScenarios((parsed as Record<string, unknown>).careerScenarios),
     companyStrategyReports: normalizeCompanyStrategyReports((parsed as Record<string, unknown>).companyStrategyReports, topCompanies),
     careerRoadmap: normalizeCareerRoadmap((parsed as Record<string, unknown>).careerRoadmap),
+    debug: {
+      researchSource: researchMeta.researchSource,
+      researchedCompanyCount: researchMeta.researchedCompanyCount,
+    },
     userProfileSummary: pickProfileSummary(userProfile),
     analysisSnapshot: {
       score: analysisResult.score || analysisResult.rawScore || '未設定',
@@ -781,6 +909,28 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     const userProfile = (typedRequestBody.userProfile || {}) as Record<string, unknown>
     const topCompanies = asArray(typedRequestBody.topCompanies)
     const analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
+    const topCompaniesForResearch = topCompanies.slice(0, 5)
+
+    const tavilyApiKey = process.env.TAVILY_API_KEY || ''
+    console.log('hasTavilyKey', Boolean(tavilyApiKey))
+
+    let companyResearch: CompanyResearchItem[] = []
+    let researchMeta: CompanyResearchMeta = {
+      researchSource: 'none',
+      researchedCompanyCount: 0,
+      researchFallback: true,
+    }
+
+    if (tavilyApiKey) {
+      const researchResult = await fetchTopCompanyResearch(tavilyApiKey, topCompaniesForResearch)
+      companyResearch = researchResult.companyResearch
+      researchMeta = researchResult.meta
+    } else {
+      console.log('companyResearchStart')
+      console.log('companyResearchSuccess', 0)
+      console.log('companyResearchFailed', topCompaniesForResearch.length)
+      console.log('researchFallback', true)
+    }
 
     const apiKey = process.env.OPENAI_API_KEY || ''
     console.log('generateCareerInsights key status', { hasOpenAIKey: Boolean(apiKey) })
@@ -791,7 +941,7 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     if (apiKey) {
       console.log('generateCareerInsights OpenAI call start')
       try {
-        response = await generateWithOpenAI(apiKey, userProfile, topCompanies, analysisResult)
+        response = await generateWithOpenAI(apiKey, userProfile, topCompanies, analysisResult, companyResearch, researchMeta)
         if (response) {
           console.log('generateCareerInsights OpenAI call success')
         }
@@ -817,7 +967,7 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
 
     if (!response) {
       console.log('generateCareerInsights fallback', { fallbackToMock: true, fallbackReason, responseType: fallbackResponseType })
-      response = buildMockResponse(userProfile, topCompanies, analysisResult, fallbackReason, fallbackResponseType)
+      response = buildMockResponse(userProfile, topCompanies, analysisResult, fallbackReason, fallbackResponseType, researchMeta)
     }
 
     console.log('generateCareerInsights responsePreview', {
