@@ -215,6 +215,11 @@ function normalizeAiResponse(response, profile, topCompanies) {
 
   console.log('AI raw response', response)
 
+  const debug = response.debug && typeof response.debug === 'object' ? response.debug : {}
+  const researchSource = typeof debug.researchSource === 'string' ? debug.researchSource : 'none'
+  const researchedCompanyCount = Number.isFinite(Number(debug.researchedCompanyCount)) ? Number(debug.researchedCompanyCount) : 0
+  const totalProcessingMs = Number.isFinite(Number(debug.totalProcessingMs)) ? Number(debug.totalProcessingMs) : 0
+
   const companies = (response.companies || response.companyInsights || []).map((company, index) => normalizeCompanyInsight(company, index))
   const careerArchetype = response.careerArchetype || {
     type: '実行推進型ストラテジスト',
@@ -265,6 +270,10 @@ function normalizeAiResponse(response, profile, topCompanies) {
     careerScenarios,
     companyStrategyReports,
     careerRoadmap,
+    debug,
+    researchSource,
+    researchedCompanyCount,
+    totalProcessingMs,
     topCompanies,
   }
 }

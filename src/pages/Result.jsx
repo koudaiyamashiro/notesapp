@@ -363,6 +363,9 @@ export default function Result() {
                     <p>aiAnalysis.debugVersion: {aiInsights?.debugVersion || '-'}</p>
                     <p>aiAnalysis.debugSource: {aiInsights?.debugSource || '-'}</p>
                     <p>aiAnalysis.fallbackReason: {aiInsights?.fallbackReason || '-'}</p>
+                    <p>aiAnalysis.researchSource: {aiInsights?.researchSource || aiInsights?.debug?.researchSource || '-'}</p>
+                    <p>aiAnalysis.researchedCompanyCount: {aiInsights?.researchedCompanyCount ?? aiInsights?.debug?.researchedCompanyCount ?? '-'}</p>
+                    <p>aiAnalysis.totalProcessingMs: {aiInsights?.totalProcessingMs ?? aiInsights?.debug?.totalProcessingMs ?? '-'}</p>
                   </div>
                 </details>
               </div>

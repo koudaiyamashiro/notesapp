@@ -77,7 +77,7 @@ type CareerInsightsResponse = {
   analysisSnapshot?: Record<string, unknown>
 }
 
-type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error' | 'openai_bad_request' | 'openai_context_length'
+type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error' | 'openai_bad_request' | 'openai_context_length' | 'missing_openai_api_key' | 'research_fallback'
 
 type OpenAIError = Error & {
   code: OpenAIErrorCode
@@ -574,25 +574,111 @@ function normalizeCareerScenarios(value: unknown) {
     })
 }
 
-function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[]) {
+function inferCompanyFocus(companyName: string, researchSummary: string) {
+  const lower = `${companyName} ${researchSummary}`.toLowerCase()
+
+  if (lower.includes('abeja')) {
+    return {
+      focus: 'AI/データ活用',
+      caution: 'AI活用の実装速度と品質担保の両立が求められる可能性があります。',
+      appeal: 'AI/データ施策を事業KPIへ接続した実績を具体的に示すことが有効です。',
+      prep: 'データ活用プロジェクトの成果を、課題・打ち手・効果で1枚に整理してください。',
+    }
+  }
+
+  if (lower.includes('microsoft')) {
+    return {
+      focus: 'クラウド/AI/エンタープライズ',
+      caution: '大規模顧客を前提とした合意形成と提案品質の水準が高い可能性があります。',
+      appeal: 'クラウド導入やAI活用を、業務変革や売上貢献に結び付けた説明が有効です。',
+      prep: 'AzureやCopilot関連の活用事例を、顧客課題との対応関係で準備してください。',
+    }
+  }
+
+  if (lower.includes('ibm')) {
+    return {
+      focus: 'ハイブリッドクラウド/AI/コンサル',
+      caution: '技術理解に加えて、業界文脈を踏まえた提案力が求められる可能性があります。',
+      appeal: '複数部門を巻き込んだ変革推進の経験を、意思決定プロセスとともに示すと有効です。',
+      prep: 'ハイブリッドクラウドやAI活用の導入効果を、定量指標で説明できるようにしてください。',
+    }
+  }
+
+  if (lower.includes('dirbato')) {
+    return {
+      focus: 'ITコンサル/DX支援',
+      caution: '短期間での成果創出とクライアント折衝の両立が求められる可能性があります。',
+      appeal: 'DXプロジェクトでの課題整理から実行までの推進経験を示すと有効です。',
+      prep: '業務改革・システム導入の実績を、再現可能な進め方として整理してください。',
+    }
+  }
+
+  if (lower.includes('クラウド')) {
+    return {
+      focus: 'クラウド活用',
+      caution: '変化の速い技術領域への継続的なキャッチアップが必要な可能性があります。',
+      appeal: 'クラウド基盤の改善を事業成果に変換した経験を示すと有効です。',
+      prep: 'クラウド関連の改善施策を、効果指標つきで整理してください。',
+    }
+  }
+
+  if (lower.includes('コンサル') || lower.includes('dx')) {
+    return {
+      focus: 'DX推進/コンサルティング',
+      caution: '複数ステークホルダーとの調整負荷が高い可能性があります。',
+      appeal: '課題特定から実行までの推進力を、具体事例で示すと有効です。',
+      prep: '提案資料を、課題・打ち手・効果の構造でテンプレート化してください。',
+    }
+  }
+
+  return {
+    focus: '事業成長に直結する業務推進',
+    caution: '立ち上がり初期に期待値調整と優先順位付けが重要になる可能性があります。',
+    appeal: '成果創出までのプロセスを定量で示すことが有効です。',
+    prep: '実績3件を課題・打ち手・成果で整理し、再現性を説明できるようにしてください。',
+  }
+}
+
+function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[], companyResearch: CompanyResearchItem[]) {
   const byName = new Map(
     asArray(value)
       .filter((item) => item && typeof item === 'object')
       .map((item) => [String((item as Record<string, unknown>).companyName || ''), item as Record<string, unknown>])
   )
 
+  const researchByName = new Map(companyResearch.map((item) => [item.companyName, item.researchSummary]))
+
   return topCompanies.slice(0, 5).map((company, index) => {
     const base = (company || {}) as Record<string, any>
     const name = String(base.name || `Company ${index + 1}`)
     const source = byName.get(name) || {}
+    const researchSummary = String(researchByName.get(name) || '')
+    const focus = inferCompanyFocus(name, researchSummary)
+    const recommendationReason = asStringArray((source as Record<string, unknown>).recommendationReason, 4)
+    const concernPoints = asStringArray((source as Record<string, unknown>).concernPoints, 4)
+    const interviewAppealPoints = asStringArray((source as Record<string, unknown>).interviewAppealPoints, 4)
+    const preparationActions = asStringArray((source as Record<string, unknown>).preparationActions, 4)
+
+    const resolvedRecommendationReason =
+      recommendationReason.length > 0
+        ? recommendationReason
+        : [
+            `${name}は${focus.focus}の文脈で、これまでの経験を活かせる可能性があります。`,
+            '公開情報ベースでは、役割期待と経験の接点を作りやすいと考えられます。',
+          ]
+
+    const resolvedConcernPoints = concernPoints.length > 0 ? concernPoints : [focus.caution]
+    const resolvedInterviewAppealPoints = interviewAppealPoints.length > 0 ? interviewAppealPoints : [focus.appeal]
+    const resolvedPreparationActions = preparationActions.length > 0 ? preparationActions : [focus.prep]
+
     return {
       companyName: name,
       fitScore: asSafeNumber((source as Record<string, unknown>).fitScore ?? base.overallFit ?? base.matchScore, 75, 40, 99),
       expectedRole: String((source as Record<string, unknown>).expectedRole || '想定ポジション未設定'),
-      recommendationReason: asStringArray((source as Record<string, unknown>).recommendationReason, 4),
-      concernPoints: asStringArray((source as Record<string, unknown>).concernPoints, 4),
-      interviewAppealPoints: asStringArray((source as Record<string, unknown>).interviewAppealPoints, 4),
-      preparationActions: asStringArray((source as Record<string, unknown>).preparationActions, 4),
+      recommendationReason: resolvedRecommendationReason,
+      concernPoints: resolvedConcernPoints,
+      interviewAppealPoints: resolvedInterviewAppealPoints,
+      preparationActions: resolvedPreparationActions,
       estimatedOfferProbability: String((source as Record<string, unknown>).estimatedOfferProbability || '中（目安）'),
     }
   })
@@ -936,7 +1022,7 @@ async function generateWithOpenAI(
     careerArchetype: normalizeCareerArchetype((parsed as Record<string, unknown>).careerArchetype),
     marketValue: normalizeMarketValue((parsed as Record<string, unknown>).marketValue, analysisResult),
     careerScenarios: normalizeCareerScenarios((parsed as Record<string, unknown>).careerScenarios),
-    companyStrategyReports: normalizeCompanyStrategyReports((parsed as Record<string, unknown>).companyStrategyReports, topCompanies),
+    companyStrategyReports: normalizeCompanyStrategyReports((parsed as Record<string, unknown>).companyStrategyReports, topCompanies, companyResearch),
     careerRoadmap: normalizeCareerRoadmap((parsed as Record<string, unknown>).careerRoadmap),
     debug: {
       researchSource: researchMeta.researchSource,
@@ -1037,7 +1123,7 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
         })
       }
     } else {
-      fallbackReason = 'openai_error'
+      fallbackReason = 'missing_openai_api_key'
       fallbackResponseType = 'missing_openai_api_key'
     }
 
@@ -1052,6 +1138,10 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
       fallbackReason: response.fallbackReason || null,
       aiSummaryPreview: String(response.aiSummary || '').slice(0, 100),
     })
+
+    if (response.debugSource === 'openai' && researchMeta.researchFallback && !response.fallbackReason) {
+      response.fallbackReason = 'research_fallback'
+    }
 
     const totalProcessingMs = Date.now() - startedAt
     response.debug = {
