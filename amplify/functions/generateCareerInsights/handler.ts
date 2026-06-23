@@ -2,6 +2,9 @@ declare const process: { env: Record<string, string | undefined> }
 
 const DEBUG_VERSION = '2026-06-19-debug-v1'
 const MAX_PROMPT_CHARS = 8000
+const TAVILY_PER_COMPANY_TIMEOUT_MS = 3500
+const TAVILY_TOTAL_TIMEOUT_MS = 9000
+const OPENAI_TIMEOUT_MS = 20000
 
 type CareerInsightsRequest = {
   userProfile?: Record<string, unknown>
@@ -67,6 +70,8 @@ type CareerInsightsResponse = {
   debug?: {
     researchSource: 'tavily' | 'none'
     researchedCompanyCount: number
+    researchFallback: boolean
+    totalProcessingMs: number
   }
   userProfileSummary?: Record<string, unknown>
   analysisSnapshot?: Record<string, unknown>
@@ -123,6 +128,8 @@ function compressResearchText(text: string, minLength = 300, maxLength = 500) {
 }
 
 async function fetchCompanyResearchFromTavily(apiKey: string, companyName: string) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), TAVILY_PER_COMPANY_TIMEOUT_MS)
   const query = [
     `${companyName} 会社概要`,
     `${companyName} 主力プロダクト サービス`,
@@ -132,40 +139,47 @@ async function fetchCompanyResearchFromTavily(apiKey: string, companyName: strin
     `${companyName} 想定リスク`,
   ].join(' ')
 
-  const response = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      search_depth: 'basic',
-      max_results: 4,
-      include_answer: true,
-      include_raw_content: false,
-    }),
-  })
-
-  if (!response.ok) {
-    return ''
-  }
-
-  const payload = await response.json()
-  const answer = typeof payload?.answer === 'string' ? payload.answer : ''
-  const snippets = asArray(payload?.results)
-    .slice(0, 4)
-    .map((item) => {
-      if (!item || typeof item !== 'object') return ''
-      return safeText((item as Record<string, unknown>).content, 180)
+  try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'basic',
+        max_results: 4,
+        include_answer: true,
+        include_raw_content: false,
+      }),
     })
-    .filter(Boolean)
 
-  return compressResearchText([answer, ...snippets].join(' '), 300, 500)
+    if (!response.ok) {
+      return ''
+    }
+
+    const payload = await response.json()
+    const answer = typeof payload?.answer === 'string' ? payload.answer : ''
+    const snippets = asArray(payload?.results)
+      .slice(0, 4)
+      .map((item) => {
+        if (!item || typeof item !== 'object') return ''
+        return safeText((item as Record<string, unknown>).content, 180)
+      })
+      .filter(Boolean)
+
+    return compressResearchText([answer, ...snippets].join(' '), 300, 500)
+  } catch {
+    return ''
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 async function fetchTopCompanyResearch(tavilyApiKey: string, topCompanies: unknown[]) {
-  const companies = topCompanies.slice(0, 5).map((company, index) => {
+  const companies = topCompanies.slice(0, 3).map((company, index) => {
     const typed = (company || {}) as Record<string, unknown>
     return {
       companyName: String(typed.name || `Company ${index + 1}`),
@@ -174,22 +188,35 @@ async function fetchTopCompanyResearch(tavilyApiKey: string, topCompanies: unkno
 
   console.log('companyResearchStart')
 
-  const settled = await Promise.allSettled(
-    companies.map(async (company) => {
-      const summary = await fetchCompanyResearchFromTavily(tavilyApiKey, company.companyName)
-      if (!summary) throw new Error('research_unavailable')
-      return {
-        companyName: company.companyName,
-        researchSummary: summary,
-      } as CompanyResearchItem
+  const companyResearch: CompanyResearchItem[] = []
+  let failedCount = 0
+  let timedOut = false
+
+  const tasks = companies.map(async (company) => {
+    const summary = await fetchCompanyResearchFromTavily(tavilyApiKey, company.companyName)
+    if (!summary) {
+      failedCount += 1
+      return
+    }
+    companyResearch.push({
+      companyName: company.companyName,
+      researchSummary: summary,
     })
-  )
+  })
 
-  const companyResearch = settled
-    .filter((item): item is PromiseFulfilledResult<CompanyResearchItem> => item.status === 'fulfilled')
-    .map((item) => item.value)
+  await Promise.race([
+    Promise.allSettled(tasks),
+    new Promise<void>((resolve) => {
+      setTimeout(() => {
+        timedOut = true
+        resolve()
+      }, TAVILY_TOTAL_TIMEOUT_MS)
+    }),
+  ])
 
-  const failedCount = settled.length - companyResearch.length
+  if (timedOut) {
+    failedCount = Math.max(failedCount, companies.length - companyResearch.length)
+  }
   console.log('companyResearchSuccess', companyResearch.length)
   console.log('companyResearchFailed', failedCount)
   console.log('researchFallback', companyResearch.length === 0)
@@ -489,6 +516,8 @@ function buildMockResponse(
     debug: {
       researchSource: researchMeta.researchSource,
       researchedCompanyCount: researchMeta.researchedCompanyCount,
+      researchFallback: researchMeta.researchFallback,
+      totalProcessingMs: 0,
     },
     userProfileSummary: profileSummary,
     analysisSnapshot: {
@@ -639,6 +668,19 @@ function createOpenAIError(code: OpenAIErrorCode, message: string, responseType?
   return error
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 async function generateWithOpenAI(
   apiKey: string,
   userProfile: Record<string, unknown>,
@@ -773,22 +815,31 @@ async function generateWithOpenAI(
 
   console.log('generateCareerInsights promptLength', { promptLength, maxPromptChars: MAX_PROMPT_CHARS })
 
-  const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
-  })
+  let openAIResponse: Response
+  try {
+    openAIResponse = await fetchWithTimeout(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          temperature: 0.3,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        }),
+      },
+      OPENAI_TIMEOUT_MS
+    )
+  } catch {
+    throw createOpenAIError('openai_error', 'OpenAI request timed out', 'timeout')
+  }
 
   if (!openAIResponse.ok) {
     const errorRaw = await openAIResponse.text()
@@ -890,6 +941,8 @@ async function generateWithOpenAI(
     debug: {
       researchSource: researchMeta.researchSource,
       researchedCompanyCount: researchMeta.researchedCompanyCount,
+      researchFallback: researchMeta.researchFallback,
+      totalProcessingMs: 0,
     },
     userProfileSummary: pickProfileSummary(userProfile),
     analysisSnapshot: {
@@ -901,6 +954,7 @@ async function generateWithOpenAI(
 
 export async function handler(event: { body?: string; requestContext?: { http?: { method?: string } } } | CareerInsightsRequest = {}) {
   console.log(`generateCareerInsights handler version: ${DEBUG_VERSION}`)
+  const startedAt = Date.now()
 
   const method = 'requestContext' in event ? event.requestContext?.http?.method : undefined
 
@@ -930,7 +984,7 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     userProfile = (typedRequestBody.userProfile || {}) as Record<string, unknown>
     topCompanies = asArray(typedRequestBody.topCompanies)
     analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
-    const topCompaniesForResearch = topCompanies.slice(0, 5)
+    const topCompaniesForResearch = topCompanies.slice(0, 3)
 
     const tavilyApiKey = process.env.TAVILY_API_KEY || ''
     console.log('hasTavilyKey', Boolean(tavilyApiKey))
@@ -999,6 +1053,14 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
       aiSummaryPreview: String(response.aiSummary || '').slice(0, 100),
     })
 
+    const totalProcessingMs = Date.now() - startedAt
+    response.debug = {
+      researchSource: response.debug?.researchSource || researchMeta.researchSource,
+      researchedCompanyCount: response.debug?.researchedCompanyCount ?? researchMeta.researchedCompanyCount,
+      researchFallback: response.debug?.researchFallback ?? researchMeta.researchFallback,
+      totalProcessingMs,
+    }
+
     return buildJsonResponse(200, response)
   } catch (error) {
     const fallbackReason = error instanceof SyntaxError ? 'request_parse_error' : 'handler_unexpected_error'
@@ -1014,6 +1076,14 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
       fallbackReason: errorResponse.fallbackReason,
       aiSummaryPreview: String(errorResponse.aiSummary || '').slice(0, 100),
     })
+
+    const totalProcessingMs = Date.now() - startedAt
+    errorResponse.debug = {
+      researchSource: errorResponse.debug?.researchSource || researchMeta.researchSource,
+      researchedCompanyCount: errorResponse.debug?.researchedCompanyCount ?? researchMeta.researchedCompanyCount,
+      researchFallback: errorResponse.debug?.researchFallback ?? researchMeta.researchFallback,
+      totalProcessingMs,
+    }
 
     return buildJsonResponse(200, errorResponse)
   }
