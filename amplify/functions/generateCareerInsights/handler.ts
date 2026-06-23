@@ -14,7 +14,7 @@ type CareerInsightsRequest = {
 
 type CareerInsightsResponse = {
   debugVersion: string
-  debugSource: 'openai' | 'mock'
+  debugSource: 'openai' | 'openai_partial' | 'mock'
   fallbackReason?: string | null
   aiSummary: string
   companyInsights: Array<Record<string, unknown>>
@@ -80,6 +80,7 @@ type CareerInsightsResponse = {
 type OpenAIErrorCode =
   | 'invalid_response'
   | 'parse_error'
+  | 'partial_openai_response'
   | 'missing_openai_api_key'
   | 'openai_auth_error'
   | 'openai_rate_limit'
@@ -706,6 +707,35 @@ function normalizeCareerRoadmap(value: unknown) {
   }
 }
 
+function hasRoadmapContent(roadmap: {
+  next1Month: string[]
+  next3Months: string[]
+  next6Months: string[]
+  next1Year: string[]
+  next3Years: string[]
+}) {
+  return (
+    roadmap.next1Month.length > 0 ||
+    roadmap.next3Months.length > 0 ||
+    roadmap.next6Months.length > 0 ||
+    roadmap.next1Year.length > 0 ||
+    roadmap.next3Years.length > 0
+  )
+}
+
+function buildDefaultOpenAICompanyInsights(topCompanies: unknown[]) {
+  return topCompanies.slice(0, 3).map((company, index) => {
+    const typed = (company || {}) as Record<string, unknown>
+    const companyName = String(typed.name || `Company ${index + 1}`)
+    return {
+      companyName,
+      summary: `${companyName}は公開情報ベースでは、経験との接点を作りやすい可能性があります。`,
+      reasons: ['公開情報ベースでは、現在の経験を活かせる業務領域がある可能性があります。'],
+      risks: ['役割期待値のすり合わせと初期成果の定義が重要になる可能性があります。'],
+    }
+  })
+}
+
 function extractJsonTextFromOpenAIResponse(payload: any): string {
   const fromMessage = payload?.choices?.[0]?.message?.content
   if (typeof fromMessage === 'string') return fromMessage
@@ -794,6 +824,7 @@ async function generateWithOpenAI(
     'あなたは転職意思決定を支援するシニアキャリアコンサルタントです。',
     'JSONのみ返してください。Markdownや説明文は不要です。',
     '以下のキーを必ず返してください: aiSummary, riskAnalysis, nextActions, companyInsights, careerArchetype, marketValue, careerScenarios, companyStrategyReports, careerRoadmap。',
+    '必須キーは空にせず、最低1件の内容を入れてください。',
     '回答は日本語。簡潔かつ具体的に。',
     '最優先は companyStrategyReports の企業別具体化です。',
     'companyResearch を根拠に、企業ごとに推薦理由・懸念点・面接訴求ポイント・準備アクションを差別化してください。',
@@ -949,33 +980,79 @@ async function generateWithOpenAI(
     throw createOpenAIError('invalid_response', 'Parsed OpenAI response is not an object', responseType)
   }
 
-  const aiSummary = typeof parsed.aiSummary === 'string' ? parsed.aiSummary : ''
-  const riskAnalysis = Array.isArray(parsed.riskAnalysis) ? parsed.riskAnalysis.filter((v: unknown) => typeof v === 'string') : []
-  const nextActions = Array.isArray(parsed.nextActions) ? parsed.nextActions.filter((v: unknown) => typeof v === 'string') : []
-  const companyInsights = Array.isArray(parsed.companyInsights) ? parsed.companyInsights : []
+  const parsedObject = parsed as Record<string, unknown>
+  let isPartial = false
 
-  if (!aiSummary || companyInsights.length === 0) {
-    console.warn('generateCareerInsights normalize failed', {
-      parseError: '',
-      responseType: getResponseType(parsed),
-      responseKeys: getResponseKeys(parsed),
-    })
-    throw createOpenAIError('invalid_response', 'OpenAI response is missing required fields', getResponseType(parsed))
-  }
+  const aiSummaryRaw = typeof parsedObject.aiSummary === 'string' ? parsedObject.aiSummary.trim() : ''
+  const aiSummary = aiSummaryRaw || '公開情報ベースの仮説として、企業ごとの適性と打ち手を要約します。'
+  if (!aiSummaryRaw) isPartial = true
+
+  const riskAnalysisRaw = Array.isArray(parsedObject.riskAnalysis) ? parsedObject.riskAnalysis.filter((v: unknown) => typeof v === 'string') : []
+  const riskAnalysis = riskAnalysisRaw.length > 0 ? riskAnalysisRaw.slice(0, 5) : ['公開情報ベースでは、選考ごとに期待値の差分確認が重要です。']
+  if (riskAnalysisRaw.length === 0) isPartial = true
+
+  const nextActionsRaw = Array.isArray(parsedObject.nextActions) ? parsedObject.nextActions.filter((v: unknown) => typeof v === 'string') : []
+  const nextActions = nextActionsRaw.length > 0 ? nextActionsRaw.slice(0, 5) : ['応募企業ごとに実績を1ページで整理し、訴求軸を明確化してください。']
+  if (nextActionsRaw.length === 0) isPartial = true
+
+  const companyInsightsRaw = Array.isArray(parsedObject.companyInsights) ? parsedObject.companyInsights : []
+  const companyInsights =
+    companyInsightsRaw.length > 0
+      ? companyInsightsRaw.map((company: Record<string, unknown>, index: number) => buildOpenAICompanyInsight(company, index))
+      : buildDefaultOpenAICompanyInsights(topCompanies)
+  if (companyInsightsRaw.length === 0) isPartial = true
+
+  const careerArchetypeRaw = normalizeCareerArchetype(parsedObject.careerArchetype)
+  if (!parsedObject.careerArchetype) isPartial = true
+
+  const marketValueRaw = normalizeMarketValue(parsedObject.marketValue, analysisResult)
+  if (!parsedObject.marketValue) isPartial = true
+
+  const careerScenariosRaw = normalizeCareerScenarios(parsedObject.careerScenarios)
+  const careerScenarios =
+    careerScenariosRaw.length > 0
+      ? careerScenariosRaw
+      : [
+          {
+            title: '現職延長での強化シナリオ',
+            targetRole: String(userProfile.role || '未設定'),
+            targetIndustry: '現職近接領域',
+            expectedSalaryRange: '現職水準±10%（目安）',
+            timeline: '6〜12ヶ月',
+            reason: '公開情報ベースの仮説として、現職実績の再現性を高めると選択肢が広がる可能性があります。',
+            requiredActions: ['実績の定量化', '企業別の訴求軸整理'],
+          },
+        ]
+  if (careerScenariosRaw.length === 0) isPartial = true
+
+  const companyStrategyReportsRaw = normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch)
+  if (!Array.isArray(parsedObject.companyStrategyReports) || asArray(parsedObject.companyStrategyReports).length === 0) isPartial = true
+
+  const careerRoadmapRaw = normalizeCareerRoadmap(parsedObject.careerRoadmap)
+  const careerRoadmap = hasRoadmapContent(careerRoadmapRaw)
+    ? careerRoadmapRaw
+    : {
+        next1Month: ['企業別に職務経歴書を調整する'],
+        next3Months: ['面接想定問答と成果事例を更新する'],
+        next6Months: ['不足スキルの実務適用を進める'],
+        next1Year: ['より高い責任範囲の案件を担う'],
+        next3Years: ['専門性と事業成果の両面で市場価値を高める'],
+      }
+  if (!hasRoadmapContent(careerRoadmapRaw)) isPartial = true
 
   return {
     debugVersion: DEBUG_VERSION,
-    debugSource: 'openai',
-    fallbackReason: null,
+    debugSource: isPartial ? 'openai_partial' : 'openai',
+    fallbackReason: isPartial ? 'partial_openai_response' : null,
     aiSummary,
-    riskAnalysis: riskAnalysis.length > 0 ? riskAnalysis.slice(0, 5) : ['リスク分析の生成に失敗しました。'],
-    nextActions: nextActions.length > 0 ? nextActions.slice(0, 5) : ['次アクションの生成に失敗しました。'],
-    companyInsights: companyInsights.map((company: Record<string, unknown>, index: number) => buildOpenAICompanyInsight(company, index)),
-    careerArchetype: normalizeCareerArchetype((parsed as Record<string, unknown>).careerArchetype),
-    marketValue: normalizeMarketValue((parsed as Record<string, unknown>).marketValue, analysisResult),
-    careerScenarios: normalizeCareerScenarios((parsed as Record<string, unknown>).careerScenarios),
-    companyStrategyReports: normalizeCompanyStrategyReports((parsed as Record<string, unknown>).companyStrategyReports, topCompanies, companyResearch),
-    careerRoadmap: normalizeCareerRoadmap((parsed as Record<string, unknown>).careerRoadmap),
+    riskAnalysis,
+    nextActions,
+    companyInsights,
+    careerArchetype: careerArchetypeRaw,
+    marketValue: marketValueRaw,
+    careerScenarios,
+    companyStrategyReports: companyStrategyReportsRaw,
+    careerRoadmap,
     debug: {
       researchSource: researchMeta.researchSource,
       researchedCompanyCount: researchMeta.researchedCompanyCount,
