@@ -4,7 +4,7 @@ const DEBUG_VERSION = '2026-06-19-debug-v1'
 const MAX_PROMPT_CHARS = 8000
 const TAVILY_PER_COMPANY_TIMEOUT_MS = 3500
 const TAVILY_TOTAL_TIMEOUT_MS = 9000
-const OPENAI_TIMEOUT_MS = 20000
+const OPENAI_TIMEOUT_MS = 30000
 
 type CareerInsightsRequest = {
   userProfile?: Record<string, unknown>
@@ -128,7 +128,7 @@ function asArray(value: unknown) {
   return Array.isArray(value) ? value : []
 }
 
-function compressResearchText(text: string, minLength = 300, maxLength = 500) {
+function compressResearchText(text: string, minLength = 200, maxLength = 300) {
   const normalized = String(text || '').replace(/\s+/g, ' ').trim()
   if (!normalized) return ''
   if (normalized.length <= maxLength) return normalized
@@ -181,7 +181,7 @@ async function fetchCompanyResearchFromTavily(apiKey: string, companyName: strin
       })
       .filter(Boolean)
 
-    return compressResearchText([answer, ...snippets].join(' '), 300, 500)
+    return compressResearchText([answer, ...snippets].join(' '), 200, 300)
   } catch {
     return ''
   } finally {
@@ -367,10 +367,10 @@ function buildPromptPayload(
     topCompanies: companies,
     analysisResult: sanitizeAnalysisForPrompt(analysisResult),
     companyResearch: companyResearch
-      .slice(0, 5)
+      .slice(0, 3)
       .map((item) => ({
         companyName: safeText(item.companyName, 80),
-        researchSummary: strict ? safeText(item.researchSummary, 320) : safeText(item.researchSummary, 500),
+        researchSummary: strict ? safeText(item.researchSummary, 220) : safeText(item.researchSummary, 300),
       })),
   }
 }
@@ -792,82 +792,16 @@ async function generateWithOpenAI(
 
   const systemPrompt = [
     'あなたは転職意思決定を支援するシニアキャリアコンサルタントです。',
-    '必ずJSONだけを返してください。Markdown、説明文、コードブロック、前置き、後置きは一切不要です。',
-    '返却JSONは次の形式に厳密に一致させてください。余計なキーは追加しないでください。',
-    '{',
-    '  "aiSummary": "string",',
-    '  "riskAnalysis": ["string"],',
-    '  "nextActions": ["string"],',
-    '  "companyInsights": [',
-    '    {',
-    '      "companyName": "string",',
-    '      "summary": "string",',
-    '      "reasons": ["string"],',
-    '      "risks": ["string"]',
-    '    }',
-    '  ],',
-    '  "careerArchetype": {',
-    '    "type": "string",',
-    '    "summary": "string",',
-    '    "strengths": ["string"],',
-    '    "risks": ["string"]',
-    '  },',
-    '  "marketValue": {',
-    '    "score": 0,',
-    '    "percentile": "string",',
-    '    "currentEstimatedSalaryRange": "string",',
-    '    "threeYearSalaryRange": "string",',
-    '    "fiveYearSalaryRange": "string",',
-    '    "evaluation": "string",',
-    '    "breakdown": {',
-    '      "skillRarity": 0,',
-    '      "industryDemand": 0,',
-    '      "transferability": 0,',
-    '      "managementPotential": 0,',
-    '      "growthPotential": 0',
-    '    }',
-    '  },',
-    '  "careerScenarios": [{',
-    '    "title": "string",',
-    '    "targetRole": "string",',
-    '    "targetIndustry": "string",',
-    '    "expectedSalaryRange": "string",',
-    '    "timeline": "string",',
-    '    "reason": "string",',
-    '    "requiredActions": ["string"]',
-    '  }],',
-    '  "companyStrategyReports": [{',
-    '    "companyName": "string",',
-    '    "fitScore": 0,',
-    '    "expectedRole": "string",',
-    '    "recommendationReason": ["string"],',
-    '    "concernPoints": ["string"],',
-    '    "interviewAppealPoints": ["string"],',
-    '    "preparationActions": ["string"],',
-    '    "estimatedOfferProbability": "string"',
-    '  }],',
-    '  "careerRoadmap": {',
-    '    "next1Month": ["string"],',
-    '    "next3Months": ["string"],',
-    '    "next6Months": ["string"],',
-    '    "next1Year": ["string"],',
-    '    "next3Years": ["string"]',
-    '  }',
-    '}',
-    '回答は必ず日本語で作成してください。',
-    '単なる要約は禁止です。意思決定に使える具体性で記述してください。',
-    'aiSummaryには必ず次の要素を含めてください: 市場価値評価、年収レンジ、キャリア類型、向いている業界、向いている職種、弱み・注意点、キャリアリスク、3年後仮説、5年後仮説、企業比較。',
-    'aiSummaryは最低1000文字相当の分量で、根拠と示唆を具体的に書いてください。',
-    'companyInsightsの各企業について、reasonsは推薦理由を具体的に、risksは懸念点を具体的に記述してください。',
-    'companyStrategyReportsには企業別の推薦理由、懸念点、面接訴求ポイント、準備アクション、内定確率の目安を含めてください。',
-    '入力のcompanyResearchを公開情報ベースの根拠として活用し、companyStrategyReportsを具体化してください。',
-    '抽象的な一般論は避け、企業ごとに推薦理由・懸念点・面接訴求ポイント・準備アクションを具体的に記述してください。',
+    'JSONのみ返してください。Markdownや説明文は不要です。',
+    '以下のキーを必ず返してください: aiSummary, riskAnalysis, nextActions, companyInsights, careerArchetype, marketValue, careerScenarios, companyStrategyReports, careerRoadmap。',
+    '回答は日本語。簡潔かつ具体的に。',
+    '最優先は companyStrategyReports の企業別具体化です。',
+    'companyResearch を根拠に、企業ごとに推薦理由・懸念点・面接訴求ポイント・準備アクションを差別化してください。',
+    'careerScenarios は最大1件、requiredActions は最大2件にしてください。',
+    'careerRoadmap は各期間最大1件で短く記述してください。',
+    'aiSummary は300〜500文字程度にしてください。',
+    'riskAnalysis と nextActions はそれぞれ1〜3件にしてください。',
     '不確かな情報は断定せず「公開情報ベースでは」「可能性があります」と表現してください。',
-    'careerRoadmapには1ヶ月、3ヶ月、6ヶ月、1年、3年のアクションを含めてください。',
-    '年収や内定確率は保証ではなく推定・目安として表現し、断定しすぎないでください。',
-    '入力情報が少ない場合も、仮説として明示して出力してください。',
-    'companyInsightsは入力のtopCompaniesに対応させてください。',
-    'riskAnalysisとnextActionsはそれぞれ1件以上返してください。',
   ].join('\n')
 
   let userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
@@ -927,6 +861,7 @@ async function generateWithOpenAI(
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           temperature: 0.3,
+          max_tokens: 1800,
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: systemPrompt },
