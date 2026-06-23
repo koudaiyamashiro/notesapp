@@ -651,7 +651,7 @@ function inferCompanyFocus(companyName: string, researchSummary: string) {
   }
 }
 
-function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[], companyResearch: CompanyResearchItem[]) {
+function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[], companyResearch: CompanyResearchItem[], useFallbackDefaults = true) {
   const byName = new Map(
     asArray(value)
       .filter((item) => item && typeof item === 'object')
@@ -674,24 +674,26 @@ function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[]
     const resolvedRecommendationReason =
       recommendationReason.length > 0
         ? recommendationReason
-        : [
-            `${name}は${focus.focus}の文脈で、これまでの経験を活かせる可能性があります。`,
-            '公開情報ベースでは、役割期待と経験の接点を作りやすいと考えられます。',
-          ]
+        : useFallbackDefaults
+          ? [
+              `${name}は${focus.focus}の文脈で、これまでの経験を活かせる可能性があります。`,
+              '公開情報ベースでは、役割期待と経験の接点を作りやすいと考えられます。',
+            ]
+          : []
 
-    const resolvedConcernPoints = concernPoints.length > 0 ? concernPoints : [focus.caution]
-    const resolvedInterviewAppealPoints = interviewAppealPoints.length > 0 ? interviewAppealPoints : [focus.appeal]
-    const resolvedPreparationActions = preparationActions.length > 0 ? preparationActions : [focus.prep]
+    const resolvedConcernPoints = concernPoints.length > 0 ? concernPoints : useFallbackDefaults ? [focus.caution] : []
+    const resolvedInterviewAppealPoints = interviewAppealPoints.length > 0 ? interviewAppealPoints : useFallbackDefaults ? [focus.appeal] : []
+    const resolvedPreparationActions = preparationActions.length > 0 ? preparationActions : useFallbackDefaults ? [focus.prep] : []
 
     return {
       companyName: name,
       fitScore: asSafeNumber((source as Record<string, unknown>).fitScore ?? base.overallFit ?? base.matchScore, 75, 40, 99),
-      expectedRole: String((source as Record<string, unknown>).expectedRole || '想定ポジション未設定'),
+      expectedRole: String((source as Record<string, unknown>).expectedRole || (useFallbackDefaults ? '想定ポジション未設定' : '')),
       recommendationReason: resolvedRecommendationReason,
       concernPoints: resolvedConcernPoints,
       interviewAppealPoints: resolvedInterviewAppealPoints,
       preparationActions: resolvedPreparationActions,
-      estimatedOfferProbability: String((source as Record<string, unknown>).estimatedOfferProbability || '中（目安）'),
+      estimatedOfferProbability: String((source as Record<string, unknown>).estimatedOfferProbability || (useFallbackDefaults ? '中（目安）' : '')),
     }
   })
 }
@@ -828,6 +830,9 @@ async function generateWithOpenAI(
     '回答は日本語。簡潔かつ具体的に。',
     '最優先は companyStrategyReports の企業別具体化です。',
     'companyResearch を根拠に、企業ごとに推薦理由・懸念点・面接訴求ポイント・準備アクションを差別化してください。',
+    'companyStrategyReports は必須です。各企業について expectedRole, recommendationReason, concernPoints, interviewAppealPoints, preparationActions を必ず返してください。',
+    'companyStrategyReports の各配列は最低1件返してください。',
+    '抽象表現は禁止です。companyResearch の事実にもとづく企業固有の表現で記述してください。',
     'careerScenarios は最大1件、requiredActions は最大2件にしてください。',
     'careerRoadmap は各期間最大1件で短く記述してください。',
     'aiSummary は300〜500文字程度にしてください。',
@@ -982,31 +987,50 @@ async function generateWithOpenAI(
 
   const parsedObject = parsed as Record<string, unknown>
   let isPartial = false
+  const missingFields: string[] = []
 
   const aiSummaryRaw = typeof parsedObject.aiSummary === 'string' ? parsedObject.aiSummary.trim() : ''
   const aiSummary = aiSummaryRaw || '公開情報ベースの仮説として、企業ごとの適性と打ち手を要約します。'
-  if (!aiSummaryRaw) isPartial = true
+  if (!aiSummaryRaw) {
+    isPartial = true
+    missingFields.push('aiSummary')
+  }
 
   const riskAnalysisRaw = Array.isArray(parsedObject.riskAnalysis) ? parsedObject.riskAnalysis.filter((v: unknown) => typeof v === 'string') : []
   const riskAnalysis = riskAnalysisRaw.length > 0 ? riskAnalysisRaw.slice(0, 5) : ['公開情報ベースでは、選考ごとに期待値の差分確認が重要です。']
-  if (riskAnalysisRaw.length === 0) isPartial = true
+  if (riskAnalysisRaw.length === 0) {
+    isPartial = true
+    missingFields.push('riskAnalysis')
+  }
 
   const nextActionsRaw = Array.isArray(parsedObject.nextActions) ? parsedObject.nextActions.filter((v: unknown) => typeof v === 'string') : []
   const nextActions = nextActionsRaw.length > 0 ? nextActionsRaw.slice(0, 5) : ['応募企業ごとに実績を1ページで整理し、訴求軸を明確化してください。']
-  if (nextActionsRaw.length === 0) isPartial = true
+  if (nextActionsRaw.length === 0) {
+    isPartial = true
+    missingFields.push('nextActions')
+  }
 
   const companyInsightsRaw = Array.isArray(parsedObject.companyInsights) ? parsedObject.companyInsights : []
   const companyInsights =
     companyInsightsRaw.length > 0
       ? companyInsightsRaw.map((company: Record<string, unknown>, index: number) => buildOpenAICompanyInsight(company, index))
       : buildDefaultOpenAICompanyInsights(topCompanies)
-  if (companyInsightsRaw.length === 0) isPartial = true
+  if (companyInsightsRaw.length === 0) {
+    isPartial = true
+    missingFields.push('companyInsights')
+  }
 
   const careerArchetypeRaw = normalizeCareerArchetype(parsedObject.careerArchetype)
-  if (!parsedObject.careerArchetype) isPartial = true
+  if (!parsedObject.careerArchetype) {
+    isPartial = true
+    missingFields.push('careerArchetype')
+  }
 
   const marketValueRaw = normalizeMarketValue(parsedObject.marketValue, analysisResult)
-  if (!parsedObject.marketValue) isPartial = true
+  if (!parsedObject.marketValue) {
+    isPartial = true
+    missingFields.push('marketValue')
+  }
 
   const careerScenariosRaw = normalizeCareerScenarios(parsedObject.careerScenarios)
   const careerScenarios =
@@ -1023,10 +1047,35 @@ async function generateWithOpenAI(
             requiredActions: ['実績の定量化', '企業別の訴求軸整理'],
           },
         ]
-  if (careerScenariosRaw.length === 0) isPartial = true
+  if (careerScenariosRaw.length === 0) {
+    isPartial = true
+    missingFields.push('careerScenarios')
+  }
 
-  const companyStrategyReportsRaw = normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch)
-  if (!Array.isArray(parsedObject.companyStrategyReports) || asArray(parsedObject.companyStrategyReports).length === 0) isPartial = true
+  const hasOpenAICompanyStrategyReports = Array.isArray(parsedObject.companyStrategyReports) && asArray(parsedObject.companyStrategyReports).length > 0
+  const companyStrategyReportsRaw = hasOpenAICompanyStrategyReports
+    ? normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch, false)
+    : normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch, true)
+  if (!hasOpenAICompanyStrategyReports) {
+    isPartial = true
+    missingFields.push('companyStrategyReports')
+  }
+
+  if (hasOpenAICompanyStrategyReports && companyStrategyReportsRaw.length > 0) {
+    const sample = companyStrategyReportsRaw[0]
+    const takeText = (value: unknown) => String(value || '').slice(0, 200)
+    const first = (value: unknown) => {
+      const list = asArray(value).filter((item): item is string => typeof item === 'string')
+      return takeText(list[0] || '')
+    }
+    console.log('OPENAI_COMPANY_REPORT_SAMPLE', {
+      company: takeText(sample.companyName),
+      recommendationReason: first(sample.recommendationReason),
+      concernPoints: first(sample.concernPoints),
+      interviewAppealPoints: first(sample.interviewAppealPoints),
+      preparationActions: first(sample.preparationActions),
+    })
+  }
 
   const careerRoadmapRaw = normalizeCareerRoadmap(parsedObject.careerRoadmap)
   const careerRoadmap = hasRoadmapContent(careerRoadmapRaw)
@@ -1038,7 +1087,14 @@ async function generateWithOpenAI(
         next1Year: ['より高い責任範囲の案件を担う'],
         next3Years: ['専門性と事業成果の両面で市場価値を高める'],
       }
-  if (!hasRoadmapContent(careerRoadmapRaw)) isPartial = true
+  if (!hasRoadmapContent(careerRoadmapRaw)) {
+    isPartial = true
+    missingFields.push('careerRoadmap')
+  }
+
+  if (missingFields.length > 0) {
+    console.warn('MISSING_FIELDS', missingFields)
+  }
 
   return {
     debugVersion: DEBUG_VERSION,
