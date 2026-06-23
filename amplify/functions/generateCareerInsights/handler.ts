@@ -77,11 +77,22 @@ type CareerInsightsResponse = {
   analysisSnapshot?: Record<string, unknown>
 }
 
-type OpenAIErrorCode = 'invalid_response' | 'parse_error' | 'openai_error' | 'openai_bad_request' | 'openai_context_length' | 'missing_openai_api_key' | 'research_fallback'
+type OpenAIErrorCode =
+  | 'invalid_response'
+  | 'parse_error'
+  | 'missing_openai_api_key'
+  | 'openai_auth_error'
+  | 'openai_rate_limit'
+  | 'openai_model_error'
+  | 'openai_timeout'
+  | 'openai_unknown_error'
+  | 'research_fallback'
 
 type OpenAIError = Error & {
   code: OpenAIErrorCode
   responseType?: string
+  status?: number
+  type?: string
 }
 
 type CompanyResearchItem = {
@@ -747,10 +758,12 @@ function getResponseKeys(value: unknown) {
   return Object.keys(value).slice(0, 20)
 }
 
-function createOpenAIError(code: OpenAIErrorCode, message: string, responseType?: string): OpenAIError {
+function createOpenAIError(code: OpenAIErrorCode, message: string, responseType?: string, status?: number, type?: string): OpenAIError {
   const error = new Error(message) as OpenAIError
   error.code = code
   error.responseType = responseType
+  error.status = status
+  error.type = type
   return error
 }
 
@@ -924,7 +937,7 @@ async function generateWithOpenAI(
       OPENAI_TIMEOUT_MS
     )
   } catch {
-    throw createOpenAIError('openai_error', 'OpenAI request timed out', 'timeout')
+    throw createOpenAIError('openai_timeout', 'OpenAI request timed out', 'timeout')
   }
 
   if (!openAIResponse.ok) {
@@ -946,15 +959,19 @@ async function generateWithOpenAI(
       errorParam: String(errorInfo?.param || ''),
     })
 
-    if (errorCode === 'context_length_exceeded') {
-      throw createOpenAIError('openai_context_length', 'OpenAI request failed with context_length_exceeded', 'http_error')
+    if (openAIResponse.status === 401 || openAIResponse.status === 403) {
+      throw createOpenAIError('openai_auth_error', 'OpenAI request failed with auth error', 'http_error', openAIResponse.status, String(errorInfo?.type || ''))
     }
 
-    if (openAIResponse.status === 400) {
-      throw createOpenAIError('openai_bad_request', 'OpenAI request failed with status 400', 'http_error')
+    if (openAIResponse.status === 429) {
+      throw createOpenAIError('openai_rate_limit', 'OpenAI request failed with rate limit', 'http_error', openAIResponse.status, String(errorInfo?.type || ''))
     }
 
-    throw createOpenAIError('openai_error', `OpenAI request failed with status ${openAIResponse.status}`, 'http_error')
+    if (openAIResponse.status === 400 || errorCode === 'model_not_found' || errorCode === 'invalid_model' || errorCode === 'context_length_exceeded') {
+      throw createOpenAIError('openai_model_error', `OpenAI request failed with model-related error (${openAIResponse.status})`, 'http_error', openAIResponse.status, String(errorInfo?.type || ''))
+    }
+
+    throw createOpenAIError('openai_unknown_error', `OpenAI request failed with status ${openAIResponse.status}`, 'http_error', openAIResponse.status, String(errorInfo?.type || ''))
   }
 
   const raw = await openAIResponse.json()
@@ -1097,7 +1114,7 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     const apiKey = process.env.OPENAI_API_KEY || ''
     console.log('generateCareerInsights key status', { hasOpenAIKey: Boolean(apiKey) })
     let response: CareerInsightsResponse | null = null
-    let fallbackReason: OpenAIErrorCode = 'openai_error'
+    let fallbackReason: OpenAIErrorCode = 'openai_unknown_error'
     let fallbackResponseType = 'unknown'
 
     if (apiKey) {
@@ -1109,13 +1126,22 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
         }
       } catch (error) {
         const typedError = error as Partial<OpenAIError>
+        const code = typedError.code
+        console.error('OPENAI_ERROR_DETAILS', {
+          message: typedError?.message,
+          status: typedError?.status,
+          code: typedError?.code,
+          type: typedError?.type,
+        })
         fallbackReason =
-          typedError.code === 'parse_error' ||
-          typedError.code === 'invalid_response' ||
-          typedError.code === 'openai_bad_request' ||
-          typedError.code === 'openai_context_length'
-            ? typedError.code
-            : 'openai_error'
+          code === 'missing_openai_api_key' ||
+          code === 'openai_auth_error' ||
+          code === 'openai_rate_limit' ||
+          code === 'openai_model_error' ||
+          code === 'openai_timeout' ||
+          code === 'openai_unknown_error'
+            ? code
+            : 'openai_unknown_error'
         fallbackResponseType = typeof typedError.responseType === 'string' ? typedError.responseType : 'unknown'
         console.warn('generateCareerInsights OpenAI call failed', {
           status: fallbackReason,
