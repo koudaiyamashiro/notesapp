@@ -674,26 +674,24 @@ function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[]
     const resolvedRecommendationReason =
       recommendationReason.length > 0
         ? recommendationReason
-        : useFallbackDefaults
-          ? [
-              `${name}は${focus.focus}の文脈で、これまでの経験を活かせる可能性があります。`,
-              '公開情報ベースでは、役割期待と経験の接点を作りやすいと考えられます。',
-            ]
-          : []
+        : [
+            `${name}は${focus.focus}の文脈で、これまでの経験を活かせる可能性があります。`,
+            '公開情報ベースでは、役割期待と経験の接点を作りやすいと考えられます。',
+          ]
 
-    const resolvedConcernPoints = concernPoints.length > 0 ? concernPoints : useFallbackDefaults ? [focus.caution] : []
-    const resolvedInterviewAppealPoints = interviewAppealPoints.length > 0 ? interviewAppealPoints : useFallbackDefaults ? [focus.appeal] : []
-    const resolvedPreparationActions = preparationActions.length > 0 ? preparationActions : useFallbackDefaults ? [focus.prep] : []
+    const resolvedConcernPoints = concernPoints.length > 0 ? concernPoints : [focus.caution]
+    const resolvedInterviewAppealPoints = interviewAppealPoints.length > 0 ? interviewAppealPoints : [focus.appeal]
+    const resolvedPreparationActions = preparationActions.length > 0 ? preparationActions : [focus.prep]
 
     return {
       companyName: name,
       fitScore: asSafeNumber((source as Record<string, unknown>).fitScore ?? base.overallFit ?? base.matchScore, 75, 40, 99),
-      expectedRole: String((source as Record<string, unknown>).expectedRole || (useFallbackDefaults ? '想定ポジション未設定' : '')),
+      expectedRole: String((source as Record<string, unknown>).expectedRole || '想定ポジション未設定'),
       recommendationReason: resolvedRecommendationReason,
       concernPoints: resolvedConcernPoints,
       interviewAppealPoints: resolvedInterviewAppealPoints,
       preparationActions: resolvedPreparationActions,
-      estimatedOfferProbability: String((source as Record<string, unknown>).estimatedOfferProbability || (useFallbackDefaults ? '中（目安）' : '')),
+      estimatedOfferProbability: String((source as Record<string, unknown>).estimatedOfferProbability || '中（目安）'),
     }
   })
 }
@@ -831,7 +829,9 @@ async function generateWithOpenAI(
     '最優先は companyStrategyReports の企業別具体化です。',
     'companyResearch を根拠に、企業ごとに推薦理由・懸念点・面接訴求ポイント・準備アクションを差別化してください。',
     'companyStrategyReports は必須です。各企業について expectedRole, recommendationReason, concernPoints, interviewAppealPoints, preparationActions を必ず返してください。',
-    'companyStrategyReports の各配列は最低1件返してください。',
+    'companyStrategyReports の各配列は最低1件返してください。空配列は禁止です。',
+    'expectedRole は空文字禁止です。各企業ごとに具体的な役割名を返してください。',
+    'recommendationReason, concernPoints, interviewAppealPoints, preparationActions は各1件以上、抽象表現禁止、企業固有表現で記述してください。',
     '抽象表現は禁止です。companyResearch の事実にもとづく企業固有の表現で記述してください。',
     'careerScenarios は最大1件、requiredActions は最大2件にしてください。',
     'careerRoadmap は各期間最大1件で短く記述してください。',
