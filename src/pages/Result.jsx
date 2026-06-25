@@ -64,8 +64,35 @@ function getSalaryProjection(income) {
 }
 
 function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
+  return baseCompanies.map((company) => {
+    const aiCompany = aiCompanies.find((item) => item.companyName === company.name)
+    if (!aiCompany) return company
 
-  function sanitizeCompanyStrategyReportForView(report) {
+    return {
+      ...company,
+      recommendationReasons: {
+        ...(company.recommendationReasons || {}),
+        reasonCards: aiCompany.reasonCards || company.recommendationReasons?.reasonCards || [],
+        shortReasons: aiCompany.reasonCards?.map((item) => item.title) || company.recommendationReasons?.shortReasons || [],
+        comparisonTarget: aiCompany.comparisonTarget || company.recommendationReasons?.comparisonTarget || '',
+        comparisonReasons: aiCompany.comparisonReasons || company.recommendationReasons?.comparisonReasons || [],
+      },
+      recommendation: aiCompany.summary || company.recommendation,
+      caution: aiCompany.cautionPoints || company.caution,
+      conditionTags: aiCompany.conditionTags || company.conditionTags,
+      scoreBreakdown: aiCompany.scoreBreakdown || company.scoreBreakdown,
+      careerPathPreview: aiCompany.careerPath || company.careerPathPreview,
+      profileHighlights: [
+        ...(aiCompany.profileSummary ? [aiCompany.profileSummary.role, aiCompany.profileSummary.level, aiCompany.profileSummary.workStyle].filter(Boolean) : []),
+        ...(company.profileHighlights || []),
+      ].slice(0, 8),
+      aiInsights: aiCompany,
+    }
+  })
+}
+
+function sanitizeCompanyStrategyReportForView(report) {
+  try {
     if (!report || typeof report !== 'object') return null
     const toList = (value) => (Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [])
     const expectedRole = String(report.expectedRole || '').trim()
@@ -94,38 +121,16 @@ function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
       interviewAppealPoints,
       preparationActions,
     }
+  } catch {
+    return null
   }
-  return baseCompanies.map((company) => {
-    const aiCompany = aiCompanies.find((item) => item.companyName === company.name)
-    if (!aiCompany) return company
-
-    return {
-      ...company,
-      recommendationReasons: {
-        ...(company.recommendationReasons || {}),
-        reasonCards: aiCompany.reasonCards || company.recommendationReasons?.reasonCards || [],
-        shortReasons: aiCompany.reasonCards?.map((item) => item.title) || company.recommendationReasons?.shortReasons || [],
-        comparisonTarget: aiCompany.comparisonTarget || company.recommendationReasons?.comparisonTarget || '',
-        comparisonReasons: aiCompany.comparisonReasons || company.recommendationReasons?.comparisonReasons || [],
-      },
-      recommendation: aiCompany.summary || company.recommendation,
-      caution: aiCompany.cautionPoints || company.caution,
-      conditionTags: aiCompany.conditionTags || company.conditionTags,
-      scoreBreakdown: aiCompany.scoreBreakdown || company.scoreBreakdown,
-      careerPathPreview: aiCompany.careerPath || company.careerPathPreview,
-      profileHighlights: [
-        ...(aiCompany.profileSummary ? [aiCompany.profileSummary.role, aiCompany.profileSummary.level, aiCompany.profileSummary.workStyle].filter(Boolean) : []),
-        ...(company.profileHighlights || []),
-      ].slice(0, 8),
-      aiInsights: aiCompany,
-    }
-  })
 }
 
 export default function Result() {
   const location = useLocation()
   const navigate = useNavigate()
-  const form = location.state || DEFAULT_FORM
+  const hasDiagnosisData = Boolean(location.state && typeof location.state === 'object')
+  const form = hasDiagnosisData ? location.state : DEFAULT_FORM
   const result = useMemo(() => analyzeCareerProfile(form), [form])
   const [aiInsights, setAiInsights] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
@@ -138,12 +143,19 @@ export default function Result() {
   const [openActionIndex, setOpenActionIndex] = useState(-1)
 
   useEffect(() => {
+    if (!hasDiagnosisData) {
+      setAiInsights(null)
+      setAiError('')
+      setAiLoading(false)
+      return
+    }
+
     let active = true
     setAiInsights(null)
     setAiError('')
     setAiLoading(true)
 
-    generateCompanyInsights(form, result.recommendedCompanies, result)
+    generateCompanyInsights(form, result?.recommendedCompanies || [], result || {})
       .then((response) => {
         console.log('generateCompanyInsights response:', response)
         if (active) {
@@ -162,19 +174,19 @@ export default function Result() {
     return () => {
       active = false
     }
-  }, [form, result.recommendedCompanies])
+  }, [form, hasDiagnosisData, result])
 
   const recommendedCompanies = useMemo(
-    () => mergeCompanyInsights(result.recommendedCompanies, aiInsights?.companies),
-    [aiInsights?.companies, result.recommendedCompanies]
+    () => mergeCompanyInsights(result?.recommendedCompanies || [], aiInsights?.companies || []),
+    [aiInsights?.companies, result?.recommendedCompanies]
+  )
+
+  const companyStrategyReportsForView = useMemo(
+    () => (aiInsights?.companyStrategyReports || []).map((report) => sanitizeCompanyStrategyReportForView(report)).filter(Boolean),
+    [aiInsights?.companyStrategyReports]
   )
 
   const marketValueCard = useMemo(() => {
-
-      const companyStrategyReportsForView = useMemo(
-        () => (aiInsights?.companyStrategyReports || []).map((report) => sanitizeCompanyStrategyReportForView(report)).filter(Boolean),
-        [aiInsights?.companyStrategyReports]
-      )
     const score = Number(aiInsights?.marketValue?.score || result.score || 0)
     const rank = getMarketRank(score)
     const percentile = aiInsights?.marketValue?.percentile || getPercentileText(score)
@@ -235,6 +247,26 @@ export default function Result() {
 
   const openModal = (company) => setOpenCompany(company)
   const closeModal = () => setOpenCompany(null)
+
+  if (!hasDiagnosisData) {
+    return (
+      <div className="bg-slate-50 text-slate-950">
+        <Header />
+        <main className="mx-auto max-w-3xl px-6 py-16 sm:px-8 lg:px-10">
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
+            <h1 className="text-2xl font-semibold text-slate-900">診断データが見つかりません。もう一度診断してください</h1>
+            <p className="mt-3 text-sm text-slate-600">/result に直接アクセスしたため、表示に必要な入力データを復元できませんでした。</p>
+            <button
+              onClick={() => navigate('/assessment')}
+              className="mt-6 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+            >
+              診断画面へ戻る
+            </button>
+          </section>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-slate-50 text-slate-950">
