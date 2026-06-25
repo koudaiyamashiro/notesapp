@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom'
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-5 lg:px-8">
         <Link to="/" className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.22em] text-slate-950">
-          <span className="flex h-10 w-10 items-center justify-center rounded-3xl bg-sky-600 text-white">C</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500 text-xs text-white">C</span>
           Career Strategist AI
         </Link>
 
@@ -20,10 +20,10 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition-transform transform hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-200">
+          <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-transform transform hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-200">
             ログイン
           </button>
-          <Link className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-semibold text-white shadow-xl shadow-slate-950/10 transition-transform transform hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-300" to="/assessment">
+          <Link className="inline-flex h-11 items-center justify-center rounded-full bg-sky-500 px-5 text-sm font-semibold text-white shadow-xl shadow-sky-500/20 transition-transform transform hover:-translate-y-0.5 hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-300" to="/assessment">
             無料で始める
           </Link>
         </div>

@@ -9,6 +9,8 @@ import Footer from '../components/Footer.jsx'
 import CTASection from '../components/CTASection.jsx'
 import ResultPreviewSection from '../components/ResultPreviewSection.jsx'
 import FAQSection from '../components/FAQSection.jsx'
+import TrustSection from '../components/TrustSection.jsx'
+import SafetySection from '../components/SafetySection.jsx'
 
 export default function Home() {
   return (
@@ -16,12 +18,14 @@ export default function Home() {
       <Header />
       <main>
         <Hero />
+        <TrustSection />
         <ProblemSection />
         <FeatureSection />
         <ResultPreviewSection />
         <ComparisonSection />
         <FlowSection />
         <PricingSection />
+        <SafetySection />
         <FAQSection />
         <CTASection />
       </main>

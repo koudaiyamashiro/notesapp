@@ -2,9 +2,9 @@ import { Link } from 'react-router-dom'
 
 export default function CTASection() {
   return (
-    <section className="bg-white py-24 text-slate-900">
+    <section className="bg-[#F8FAFC] py-24 text-slate-900">
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
-        <div className="rounded-[2rem] border border-sky-100 bg-[#EAF6FF] p-10 shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-10 shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div>
               <p className="text-sm uppercase tracking-[0.28em] text-sky-600">Call to Action</p>

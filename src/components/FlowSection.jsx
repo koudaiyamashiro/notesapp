@@ -1,34 +1,70 @@
-const STEPS = [
-  { title: 'プロフィール・職歴を入力' },
-  { title: 'AIがスキル・志向性を分析' },
-  { title: '向いている業界・職種を提案' },
-  { title: '企業比較・ロードマップを確認' },
-  { title: '職務経歴書・面接対策に活用' },
+import { ArrowRight, Briefcase, Building2, ChartNoAxesCombined, FileCheck2, UserRoundSearch } from 'lucide-react'
+import SectionReveal from './SectionReveal.jsx'
+
+const steps = [
+  {
+    title: 'プロフィール入力',
+    desc: '経験・スキル・志向を3分で入力',
+    icon: UserRoundSearch,
+  },
+  {
+    title: 'AI分析',
+    desc: '市場価値と適性を構造化して分析',
+    icon: ChartNoAxesCombined,
+  },
+  {
+    title: '企業比較',
+    desc: '条件軸を揃えて候補企業を比較',
+    icon: Building2,
+  },
+  {
+    title: 'ロードマップ設計',
+    desc: '1年・3年・5年の戦略を生成',
+    icon: Briefcase,
+  },
+  {
+    title: '選考準備へ接続',
+    desc: '面接訴求ポイントまで整理',
+    icon: FileCheck2,
+  },
 ]
 
 export default function FlowSection() {
   return (
-    <section className="bg-slate-50 py-24">
+    <section className="bg-white py-24">
       <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-10">
-        <div className="max-w-3xl text-center">
-          <p className="text-sm uppercase tracking-[0.28em] text-sky-500">How it works</p>
-          <h2 className="mt-6 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            3分で、キャリアの現在地がわかる。
-          </h2>
-          <p className="mt-5 text-lg leading-8 text-slate-600">
-            5年後から逆算して、今やるべきことが見える。入力から戦略まで、ステップはたった5つ。
-          </p>
-        </div>
+        <SectionReveal>
+          <div className="text-center">
+            <p className="text-sm uppercase tracking-[0.28em] text-sky-600">How It Works</p>
+            <h2 className="mt-6 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+              3分で、キャリアの現在地がわかる。
+            </h2>
+            <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+              入力から比較、ロードマップ、面接準備まで。転職の意思決定を1本の流れで支援します。
+            </p>
+          </div>
+        </SectionReveal>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-5">
-          {STEPS.map((step, index) => (
-            <div key={step.title} className="rounded-[2rem] border border-slate-200 bg-white p-6 text-center shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-base font-semibold text-white">
-                {index + 1}
-              </div>
-              <p className="mt-4 text-sm leading-6 text-slate-700">{step.title}</p>
-            </div>
-          ))}
+        <div className="mt-14 rounded-[2rem] border border-slate-200 bg-[#F8FAFC] p-6 shadow-[0_22px_70px_rgba(15,23,42,0.06)]">
+          <div className="grid gap-4 lg:grid-cols-5">
+            {steps.map((step, index) => {
+              const Icon = step.icon
+              return (
+                <SectionReveal key={step.title} delay={index * 0.07}>
+                  <article className="relative h-full rounded-[1.2rem] border border-slate-200 bg-white p-5">
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF6FF] text-sky-600">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <p className="mt-4 text-base font-semibold text-slate-900">{step.title}</p>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">{step.desc}</p>
+                    {index < steps.length - 1 && (
+                      <ArrowRight className="absolute -right-3 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-sky-500 lg:block" />
+                    )}
+                  </article>
+                </SectionReveal>
+              )
+            })}
+          </div>
         </div>
       </div>
     </section>
