@@ -5,6 +5,143 @@ const MAX_PROMPT_CHARS = 8000
 const TAVILY_PER_COMPANY_TIMEOUT_MS = 3500
 const TAVILY_TOTAL_TIMEOUT_MS = 9000
 const OPENAI_TIMEOUT_MS = 30000
+const OPENAI_RESPONSE_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'aiSummary',
+    'riskAnalysis',
+    'nextActions',
+    'companyInsights',
+    'careerArchetype',
+    'marketValue',
+    'careerScenarios',
+    'companyStrategyReports',
+    'careerRoadmap',
+  ],
+  properties: {
+    aiSummary: { type: 'string' },
+    riskAnalysis: { type: 'array', minItems: 1, items: { type: 'string' } },
+    nextActions: { type: 'array', minItems: 1, items: { type: 'string' } },
+    companyInsights: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['companyName', 'summary', 'reasons', 'risks'],
+        properties: {
+          companyName: { type: 'string' },
+          summary: { type: 'string' },
+          reasons: { type: 'array', minItems: 1, items: { type: 'string' } },
+          risks: { type: 'array', minItems: 1, items: { type: 'string' } },
+        },
+      },
+    },
+    careerArchetype: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['type', 'summary', 'strengths', 'risks'],
+      properties: {
+        type: { type: 'string' },
+        summary: { type: 'string' },
+        strengths: { type: 'array', minItems: 1, items: { type: 'string' } },
+        risks: { type: 'array', minItems: 1, items: { type: 'string' } },
+      },
+    },
+    marketValue: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'score',
+        'percentile',
+        'currentEstimatedSalaryRange',
+        'threeYearSalaryRange',
+        'fiveYearSalaryRange',
+        'evaluation',
+        'breakdown',
+      ],
+      properties: {
+        score: { type: 'number' },
+        percentile: { type: 'string' },
+        currentEstimatedSalaryRange: { type: 'string' },
+        threeYearSalaryRange: { type: 'string' },
+        fiveYearSalaryRange: { type: 'string' },
+        evaluation: { type: 'string' },
+        breakdown: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['skillRarity', 'industryDemand', 'transferability', 'managementPotential', 'growthPotential'],
+          properties: {
+            skillRarity: { type: 'number' },
+            industryDemand: { type: 'number' },
+            transferability: { type: 'number' },
+            managementPotential: { type: 'number' },
+            growthPotential: { type: 'number' },
+          },
+        },
+      },
+    },
+    careerScenarios: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'targetRole', 'targetIndustry', 'expectedSalaryRange', 'timeline', 'reason', 'requiredActions'],
+        properties: {
+          title: { type: 'string' },
+          targetRole: { type: 'string' },
+          targetIndustry: { type: 'string' },
+          expectedSalaryRange: { type: 'string' },
+          timeline: { type: 'string' },
+          reason: { type: 'string' },
+          requiredActions: { type: 'array', minItems: 1, items: { type: 'string' } },
+        },
+      },
+    },
+    companyStrategyReports: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'companyName',
+          'fitScore',
+          'expectedRole',
+          'recommendationReason',
+          'concernPoints',
+          'interviewAppealPoints',
+          'preparationActions',
+          'estimatedOfferProbability',
+        ],
+        properties: {
+          companyName: { type: 'string' },
+          fitScore: { type: 'number' },
+          expectedRole: { type: 'string' },
+          recommendationReason: { type: 'array', minItems: 1, items: { type: 'string' } },
+          concernPoints: { type: 'array', minItems: 1, items: { type: 'string' } },
+          interviewAppealPoints: { type: 'array', minItems: 1, items: { type: 'string' } },
+          preparationActions: { type: 'array', minItems: 1, items: { type: 'string' } },
+          estimatedOfferProbability: { type: 'string' },
+        },
+      },
+    },
+    careerRoadmap: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['next1Month', 'next3Months', 'next6Months', 'next1Year', 'next3Years'],
+      properties: {
+        next1Month: { type: 'array', minItems: 1, items: { type: 'string' } },
+        next3Months: { type: 'array', minItems: 1, items: { type: 'string' } },
+        next6Months: { type: 'array', minItems: 1, items: { type: 'string' } },
+        next1Year: { type: 'array', minItems: 1, items: { type: 'string' } },
+        next3Years: { type: 'array', minItems: 1, items: { type: 'string' } },
+      },
+    },
+  },
+} as const
 
 type CareerInsightsRequest = {
   userProfile?: Record<string, unknown>
@@ -14,7 +151,7 @@ type CareerInsightsRequest = {
 
 type CareerInsightsResponse = {
   debugVersion: string
-  debugSource: 'openai' | 'openai_partial' | 'mock'
+  debugSource: 'openai' | 'mock'
   fallbackReason?: string | null
   aiSummary: string
   companyInsights: Array<Record<string, unknown>>
@@ -80,14 +217,12 @@ type CareerInsightsResponse = {
 type OpenAIErrorCode =
   | 'invalid_response'
   | 'parse_error'
-  | 'partial_openai_response'
   | 'missing_openai_api_key'
   | 'openai_auth_error'
   | 'openai_rate_limit'
   | 'openai_model_error'
   | 'openai_timeout'
   | 'openai_unknown_error'
-  | 'research_fallback'
 
 type OpenAIError = Error & {
   code: OpenAIErrorCode
@@ -350,7 +485,7 @@ function buildPromptPayload(
   strict = false
 ) {
   const companies = topCompanies
-    .slice(0, 5)
+    .slice(0, 3)
     .map((company) => sanitizeCompanyForPrompt((company || {}) as Record<string, unknown>))
     .map((company) => {
       if (!strict) return company
@@ -792,7 +927,7 @@ function normalizeCompanyStrategyReports(
 
   const researchByName = new Map(companyResearch.map((item) => [item.companyName, item.researchSummary]))
 
-  return topCompanies.slice(0, 5).map((company, index) => {
+  return topCompanies.slice(0, 3).map((company, index) => {
     const base = (company || {}) as Record<string, any>
     const name = String(base.name || `Company ${index + 1}`)
     const source = byName.get(name) || {}
@@ -928,12 +1063,14 @@ async function generateWithOpenAI(
   companyResearch: CompanyResearchItem[],
   researchMeta: CompanyResearchMeta
 ): Promise<CareerInsightsResponse | null> {
-  let promptPayload: any = buildPromptPayload(userProfile, topCompanies, analysisResult, companyResearch)
+  const targetCompanies = topCompanies.slice(0, 3)
+  let promptPayload: any = buildPromptPayload(userProfile, targetCompanies, analysisResult, companyResearch)
 
   const systemPrompt = [
     'あなたは転職意思決定を支援するシニアキャリアコンサルタントです。',
     'JSONのみ返してください。Markdownや説明文は不要です。',
     '以下のキーを必ず返してください: aiSummary, riskAnalysis, nextActions, companyInsights, careerArchetype, marketValue, careerScenarios, companyStrategyReports, careerRoadmap。',
+    'companyStrategyReports は topCompanies 上位3社のみを対象に返してください。',
     '必須キーは空にせず、最低1件の内容を入れてください。',
     '回答は日本語。簡潔かつ具体的に。',
     '最優先は companyStrategyReports の企業別具体化です。',
@@ -953,7 +1090,7 @@ async function generateWithOpenAI(
   let userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
   const fixedPromptLength = systemPrompt.length + userPrompt.length
   if (fixedPromptLength > MAX_PROMPT_CHARS) {
-    promptPayload = buildPromptPayload(userProfile, topCompanies, analysisResult, companyResearch, true)
+    promptPayload = buildPromptPayload(userProfile, targetCompanies, analysisResult, companyResearch, true)
     userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
   }
 
@@ -1008,7 +1145,14 @@ async function generateWithOpenAI(
           model: 'gpt-4o-mini',
           temperature: 0.3,
           max_tokens: 1800,
-          response_format: { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'career_insights_response',
+              strict: true,
+              schema: OPENAI_RESPONSE_JSON_SCHEMA,
+            },
+          },
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -1096,77 +1240,28 @@ async function generateWithOpenAI(
   }
 
   const parsedObject = parsed as Record<string, unknown>
-  let isPartial = false
-  const missingFields: string[] = []
-
-  const aiSummaryRaw = typeof parsedObject.aiSummary === 'string' ? parsedObject.aiSummary.trim() : ''
-  const aiSummary = aiSummaryRaw || '公開情報ベースの仮説として、企業ごとの適性と打ち手を要約します。'
-  if (!aiSummaryRaw) {
-    isPartial = true
-    missingFields.push('aiSummary')
-  }
-
-  const riskAnalysisRaw = Array.isArray(parsedObject.riskAnalysis) ? parsedObject.riskAnalysis.filter((v: unknown) => typeof v === 'string') : []
-  const riskAnalysis = riskAnalysisRaw.length > 0 ? riskAnalysisRaw.slice(0, 5) : ['公開情報ベースでは、選考ごとに期待値の差分確認が重要です。']
-  if (riskAnalysisRaw.length === 0) {
-    isPartial = true
-    missingFields.push('riskAnalysis')
-  }
-
-  const nextActionsRaw = Array.isArray(parsedObject.nextActions) ? parsedObject.nextActions.filter((v: unknown) => typeof v === 'string') : []
-  const nextActions = nextActionsRaw.length > 0 ? nextActionsRaw.slice(0, 5) : ['応募企業ごとに実績を1ページで整理し、訴求軸を明確化してください。']
-  if (nextActionsRaw.length === 0) {
-    isPartial = true
-    missingFields.push('nextActions')
-  }
-
-  const companyInsightsRaw = Array.isArray(parsedObject.companyInsights) ? parsedObject.companyInsights : []
-  const companyInsights =
-    companyInsightsRaw.length > 0
-      ? companyInsightsRaw.map((company: Record<string, unknown>, index: number) => buildOpenAICompanyInsight(company, index))
-      : buildDefaultOpenAICompanyInsights(topCompanies)
-  if (companyInsightsRaw.length === 0) {
-    isPartial = true
-    missingFields.push('companyInsights')
-  }
-
+  const aiSummary = typeof parsedObject.aiSummary === 'string' ? parsedObject.aiSummary.trim() : ''
+  const riskAnalysis = asStringArray(parsedObject.riskAnalysis, 5)
+  const nextActions = asStringArray(parsedObject.nextActions, 5)
+  const companyInsights = asArray(parsedObject.companyInsights).map((company: Record<string, unknown>, index: number) => buildOpenAICompanyInsight(company, index))
   const careerArchetypeRaw = normalizeCareerArchetype(parsedObject.careerArchetype)
-  if (!parsedObject.careerArchetype) {
-    isPartial = true
-    missingFields.push('careerArchetype')
-  }
-
   const marketValueRaw = normalizeMarketValue(parsedObject.marketValue, analysisResult)
-  if (!parsedObject.marketValue) {
-    isPartial = true
-    missingFields.push('marketValue')
-  }
-
-  const careerScenariosRaw = normalizeCareerScenarios(parsedObject.careerScenarios)
-  const careerScenarios =
-    careerScenariosRaw.length > 0
-      ? careerScenariosRaw
-      : [
-          {
-            title: '現職延長での強化シナリオ',
-            targetRole: String(userProfile.role || '未設定'),
-            targetIndustry: '現職近接領域',
-            expectedSalaryRange: '現職水準±10%（目安）',
-            timeline: '6〜12ヶ月',
-            reason: '公開情報ベースの仮説として、現職実績の再現性を高めると選択肢が広がる可能性があります。',
-            requiredActions: ['実績の定量化', '企業別の訴求軸整理'],
-          },
-        ]
-  if (careerScenariosRaw.length === 0) {
-    isPartial = true
-    missingFields.push('careerScenarios')
-  }
-
+  const careerScenarios = normalizeCareerScenarios(parsedObject.careerScenarios)
   const hasOpenAICompanyStrategyReports = Array.isArray(parsedObject.companyStrategyReports) && asArray(parsedObject.companyStrategyReports).length > 0
-  const companyStrategyReportsRaw = normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch, userProfile, true)
-  if (!hasOpenAICompanyStrategyReports) {
-    isPartial = true
-    missingFields.push('companyStrategyReports')
+  const companyStrategyReportsRaw = normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, targetCompanies, companyResearch, userProfile, true)
+  const careerRoadmap = normalizeCareerRoadmap(parsedObject.careerRoadmap)
+
+  if (
+    !aiSummary ||
+    riskAnalysis.length === 0 ||
+    nextActions.length === 0 ||
+    companyInsights.length === 0 ||
+    careerScenarios.length === 0 ||
+    !hasOpenAICompanyStrategyReports ||
+    companyStrategyReportsRaw.length === 0 ||
+    !hasRoadmapContent(careerRoadmap)
+  ) {
+    throw createOpenAIError('invalid_response', 'Structured OpenAI response did not satisfy required fields', 'json_schema_validation')
   }
 
   if (hasOpenAICompanyStrategyReports && companyStrategyReportsRaw.length > 0) {
@@ -1185,29 +1280,10 @@ async function generateWithOpenAI(
     })
   }
 
-  const careerRoadmapRaw = normalizeCareerRoadmap(parsedObject.careerRoadmap)
-  const careerRoadmap = hasRoadmapContent(careerRoadmapRaw)
-    ? careerRoadmapRaw
-    : {
-        next1Month: ['企業別に職務経歴書を調整する'],
-        next3Months: ['面接想定問答と成果事例を更新する'],
-        next6Months: ['不足スキルの実務適用を進める'],
-        next1Year: ['より高い責任範囲の案件を担う'],
-        next3Years: ['専門性と事業成果の両面で市場価値を高める'],
-      }
-  if (!hasRoadmapContent(careerRoadmapRaw)) {
-    isPartial = true
-    missingFields.push('careerRoadmap')
-  }
-
-  if (missingFields.length > 0) {
-    console.warn('MISSING_FIELDS', missingFields)
-  }
-
   return {
     debugVersion: DEBUG_VERSION,
-    debugSource: isPartial ? 'openai_partial' : 'openai',
-    fallbackReason: isPartial ? 'partial_openai_response' : null,
+    debugSource: 'openai',
+    fallbackReason: null,
     aiSummary,
     riskAnalysis,
     nextActions,
@@ -1226,7 +1302,7 @@ async function generateWithOpenAI(
     userProfileSummary: pickProfileSummary(userProfile),
     analysisSnapshot: {
       score: analysisResult.score || analysisResult.rawScore || '未設定',
-      recommendedCompanies: topCompanies.length,
+      recommendedCompanies: targetCompanies.length,
     },
   }
 }
@@ -1340,10 +1416,6 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
       fallbackReason: response.fallbackReason || null,
       aiSummaryPreview: String(response.aiSummary || '').slice(0, 100),
     })
-
-    if (response.debugSource === 'openai' && researchMeta.researchFallback && !response.fallbackReason) {
-      response.fallbackReason = 'research_fallback'
-    }
 
     const totalProcessingMs = Date.now() - startedAt
     response.debug = {
