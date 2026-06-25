@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Suspense, lazy } from 'react'
 import Header from '../components/Header.jsx'
-import CompanyCard from '../components/CompanyCard.jsx'
-import CompanyModal from '../components/CompanyModal.jsx'
-import MarketValueModal from '../components/MarketValueModal.jsx'
 import { generateCompanyInsights } from '../services/aiAnalysisService.js'
 import { analyzeCareerProfile } from '../services/careerAnalysisService.js'
-const RadarWrapper = lazy(() => import('../components/RadarWrapper.jsx'))
-const StarGrid = lazy(() => import('../components/StarGrid.jsx'))
+import ResultSidebarNav from '../components/result/ResultSidebarNav.jsx'
+import MarketValueHero from '../components/result/MarketValueHero.jsx'
+import StrengthRadarPanel from '../components/result/StrengthRadarPanel.jsx'
+import RankingPanels from '../components/result/RankingPanels.jsx'
+import CompanyRecommendationSection from '../components/result/CompanyRecommendationSection.jsx'
+import CompanyComparisonTable from '../components/result/CompanyComparisonTable.jsx'
+import RoadmapTimelineSection from '../components/result/RoadmapTimelineSection.jsx'
+import DecisionPanels from '../components/result/DecisionPanels.jsx'
 
 const DEFAULT_FORM = {
   age: '32',
@@ -26,19 +28,8 @@ const DEFAULT_FORM = {
   idealFuture: '事業責任者として組織を牽引したい',
 }
 
-function ProgressBar({ value }) {
-  return (
-    <div className="rounded-full bg-slate-200 h-4 overflow-hidden">
-      <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${value}%` }} />
-    </div>
-  )
-}
-
-function getMarketRank(score) {
-  if (score >= 85) return 'A'
-  if (score >= 75) return 'B+'
-  if (score >= 65) return 'B'
-  return 'C'
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
 }
 
 function getPercentileText(score) {
@@ -63,6 +54,12 @@ function getSalaryProjection(income) {
   return map[String(income)] || { current: '600万〜800万円', y3: '750万〜950万円', y5: '900万〜1150万円' }
 }
 
+function parseRangeMid(value) {
+  const match = String(value || '').match(/(\d+)[^\d]+(\d+)/)
+  if (!match) return { min: 0, max: 0 }
+  return { min: Number(match[1]), max: Number(match[2]) }
+}
+
 function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
   return baseCompanies.map((company) => {
     const aiCompany = aiCompanies.find((item) => item.companyName === company.name)
@@ -73,63 +70,45 @@ function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
       recommendationReasons: {
         ...(company.recommendationReasons || {}),
         reasonCards: aiCompany.reasonCards || company.recommendationReasons?.reasonCards || [],
-        shortReasons: aiCompany.reasonCards?.map((item) => item.title) || company.recommendationReasons?.shortReasons || [],
-        comparisonTarget: aiCompany.comparisonTarget || company.recommendationReasons?.comparisonTarget || '',
-        comparisonReasons: aiCompany.comparisonReasons || company.recommendationReasons?.comparisonReasons || [],
       },
       recommendation: aiCompany.summary || company.recommendation,
       caution: aiCompany.cautionPoints || company.caution,
       conditionTags: aiCompany.conditionTags || company.conditionTags,
       scoreBreakdown: aiCompany.scoreBreakdown || company.scoreBreakdown,
       careerPathPreview: aiCompany.careerPath || company.careerPathPreview,
-      profileHighlights: [
-        ...(aiCompany.profileSummary ? [aiCompany.profileSummary.role, aiCompany.profileSummary.level, aiCompany.profileSummary.workStyle].filter(Boolean) : []),
-        ...(company.profileHighlights || []),
-      ].slice(0, 8),
       aiInsights: aiCompany,
     }
   })
 }
 
-function sanitizeCompanyStrategyReportForView(report) {
-  try {
-    if (!report || typeof report !== 'object') return null
-    const toList = (value) => (Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [])
-    const businessProductFeatures = toList(report.businessProductFeatures)
-    const userConnectionPoints = toList(report.userConnectionPoints)
-    const expectedRole = String(report.expectedRole || '').trim()
-    const estimatedOfferProbability = String(report.estimatedOfferProbability || '').trim()
-    const recommendationReason = toList(report.recommendationReason)
-    const concernPoints = toList(report.concernPoints)
-    const interviewAppealPoints = toList(report.interviewAppealPoints)
-    const preparationActions = toList(report.preparationActions)
-
-    const hasAllRequired =
-      businessProductFeatures.length > 1 &&
-      userConnectionPoints.length > 1 &&
-      expectedRole &&
-      estimatedOfferProbability &&
-      recommendationReason.length > 1 &&
-      concernPoints.length > 1 &&
-      interviewAppealPoints.length > 1 &&
-      preparationActions.length > 1
-
-    if (!hasAllRequired) return null
-
+function buildRadarData(radarSource = [], form = {}) {
+  const get = (keyword) => {
+    const row = radarSource.find((item) => String(item.subject || '').includes(keyword))
     return {
-      ...report,
-      businessProductFeatures,
-      userConnectionPoints,
-      expectedRole,
-      estimatedOfferProbability,
-      recommendationReason,
-      concernPoints,
-      interviewAppealPoints,
-      preparationActions,
+      you: Number(row?.A || 60),
+      avg: Number(row?.B || 58),
     }
-  } catch {
-    return null
   }
+
+  const hasAiStrength = (form.strengths || []).some((item) => String(item).toLowerCase().includes('ai') || String(item).toLowerCase().includes('データ'))
+  const hasPlanStrength = (form.strengths || []).some((item) => String(item).includes('要件') || String(item).includes('企画'))
+
+  const analysis = get('分析')
+  const management = get('マネジ')
+  const communication = get('コミュ')
+  const execution = get('推進')
+  const specialization = get('専門')
+
+  return [
+    { axis: '論理思考', you: analysis.you, avg: analysis.avg },
+    { axis: '分析力', you: clamp(analysis.you + 2, 0, 100), avg: clamp(analysis.avg + 2, 0, 100) },
+    { axis: 'リーダーシップ', you: clamp(execution.you + 3, 0, 100), avg: clamp(execution.avg + 2, 0, 100) },
+    { axis: 'マネジメント', you: management.you, avg: management.avg },
+    { axis: '営業力', you: clamp(execution.you - 2, 0, 100), avg: clamp(execution.avg, 0, 100) },
+    { axis: '企画力', you: clamp(specialization.you + (hasPlanStrength ? 6 : 0), 0, 100), avg: specialization.avg },
+    { axis: 'AI活用', you: clamp(analysis.you + (hasAiStrength ? 10 : 0), 0, 100), avg: clamp(analysis.avg - 4, 0, 100) },
+    { axis: 'コミュニケーション', you: communication.you, avg: communication.avg },
+  ]
 }
 
 export default function Result() {
@@ -138,15 +117,10 @@ export default function Result() {
   const hasDiagnosisData = Boolean(location.state && typeof location.state === 'object')
   const form = hasDiagnosisData ? location.state : DEFAULT_FORM
   const result = useMemo(() => analyzeCareerProfile(form), [form])
+
   const [aiInsights, setAiInsights] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
-  const [openCompany, setOpenCompany] = useState(null)
-  const [openMarket, setOpenMarket] = useState(false)
-  const [highlightedMetric, setHighlightedMetric] = useState('')
-  const [showOtherCompanies, setShowOtherCompanies] = useState(false)
-  const [openRoadmapIndex, setOpenRoadmapIndex] = useState(-1)
-  const [openActionIndex, setOpenActionIndex] = useState(-1)
 
   useEffect(() => {
     if (!hasDiagnosisData) {
@@ -163,7 +137,6 @@ export default function Result() {
 
     generateCompanyInsights(form, result?.recommendedCompanies || [], result || {})
       .then((response) => {
-        console.log('generateCompanyInsights response:', response)
         if (active) {
           setAiInsights(response)
           setAiLoading(false)
@@ -187,72 +160,145 @@ export default function Result() {
     [aiInsights?.companies, result?.recommendedCompanies]
   )
 
-  const companyStrategyReportsForView = useMemo(
-    () => (aiInsights?.companyStrategyReports || []).map((report) => sanitizeCompanyStrategyReportForView(report)).filter(Boolean),
-    [aiInsights?.companyStrategyReports]
-  )
+  const marketMetrics = useMemo(() => {
+    const score = Number(aiInsights?.marketValue?.score || result.rawScore || 0)
+    const percentileText = aiInsights?.marketValue?.percentile || getPercentileText(score)
+    const percentileMatch = percentileText.match(/(\d+)/)
+    const percentile = Number(percentileMatch?.[1] || 22)
+    const nationalRank = `約${Math.max(1200, percentile * 280).toLocaleString()}位 / 120,000人`
+    const sameAgeTop = Math.max(8, 100 - Number(result.generationComparison || 75))
+    const sameAgeRank = `上位${sameAgeTop}%`
+    const salaryFallback = getSalaryProjection(form.income)
+    const salaryCurrent = aiInsights?.marketValue?.currentEstimatedSalaryRange || salaryFallback.current
+    const salary3y = aiInsights?.marketValue?.threeYearSalaryRange || salaryFallback.y3
+    const salary5y = aiInsights?.marketValue?.fiveYearSalaryRange || salaryFallback.y5
 
-  const marketValueCard = useMemo(() => {
-    const score = Number(aiInsights?.marketValue?.score || result.score || 0)
-    const rank = getMarketRank(score)
-    const percentile = aiInsights?.marketValue?.percentile || getPercentileText(score)
-    const fallbackSalary = getSalaryProjection(form.income)
-    const salary = {
-      ...fallbackSalary,
-      current: aiInsights?.marketValue?.currentEstimatedSalaryRange || fallbackSalary.current,
-      y3: aiInsights?.marketValue?.threeYearSalaryRange || fallbackSalary.y3,
-      y5: aiInsights?.marketValue?.fiveYearSalaryRange || fallbackSalary.y5,
+    return {
+      score,
+      deviation: clamp(Math.round((score - 50) * 0.6 + 50), 35, 75),
+      nationalRank,
+      sameAgeRank,
+      salaryCurrent,
+      salary3y,
+      salary5y,
     }
-    return { score, rank, percentile, salary }
-  }, [aiInsights?.marketValue, form.income, result.score])
+  }, [aiInsights?.marketValue, form.income, result.generationComparison, result.rawScore])
 
-  const selectedCompany = openCompany
+  const salarySeries = useMemo(() => {
+    const current = parseRangeMid(marketMetrics.salaryCurrent)
+    const y3 = parseRangeMid(marketMetrics.salary3y)
+    const y5 = parseRangeMid(marketMetrics.salary5y)
 
-  const roadmapAccordionItems = useMemo(() => {
-    const periods = ['現在', '1年後', '3年後', '5年後']
-    const aiDetails = Array.isArray(aiInsights?.careerRoadmapDetails) ? aiInsights.careerRoadmapDetails : []
+    return [
+      { label: '現在', min: current.min, max: current.max },
+      { label: '3年後', min: y3.min, max: y3.max },
+      { label: '5年後', min: y5.min, max: y5.max },
+    ]
+  }, [marketMetrics.salary3y, marketMetrics.salary5y, marketMetrics.salaryCurrent])
 
-    return (result.roadmap || []).map((stepText, index) => {
-      const period = periods[index] || `${index + 1}ステップ目`
-      const aiDetail = aiDetails[index] || {}
-      const actions = Array.isArray(aiDetail.actions) && aiDetail.actions.length > 0
-        ? aiDetail.actions
-        : [
-            `${period}に必要なタスクを3つに分解して実行する`,
-            `成果を定量化し、次フェーズへ接続する`,
-          ]
+  const successRates = useMemo(() => {
+    const base = clamp(Math.round(Number(result.rawScore || 65) * 0.82), 45, 88)
+    return [
+      { label: '現在応募した場合', value: base },
+      { label: '半年後', value: clamp(base + 8, 52, 93) },
+      { label: '1年後', value: clamp(base + 14, 58, 96) },
+    ]
+  }, [result.rawScore])
 
+  const radarData = useMemo(() => buildRadarData(result.radarData, form), [form, result.radarData])
+
+  const industryReasons = useMemo(() => {
+    const preferred = Array.isArray(form.desiredIndustry) ? form.desiredIndustry : []
+    return Object.fromEntries(
+      (result.industries || []).map((item) => [
+        item.label,
+        preferred.some((d) => item.label.includes(d) || d.includes(item.label))
+          ? `希望業界との一致が高く、経験を横展開しやすい領域です。`
+          : `あなたの強みと市場需要の交点が大きく、転職後に成果を出しやすい業界です。`,
+      ])
+    )
+  }, [form.desiredIndustry, result.industries])
+
+  const roleReasons = useMemo(() => {
+    const currentRole = String(form.role || '')
+    return Object.fromEntries(
+      (result.roles || []).map((item) => [
+        item.role,
+        currentRole && item.role.includes(currentRole)
+          ? `現在の職種経験を活かしつつ、年収と裁量を伸ばしやすいポジションです。`
+          : `強みと志向の一致率が高く、中長期の市場価値を上げやすい職種です。`,
+      ])
+    )
+  }, [form.role, result.roles])
+
+  const roadmapItems = useMemo(() => {
+    const aiSteps = Array.isArray(aiInsights?.careerRoadmapDetails) ? aiInsights.careerRoadmapDetails : []
+    const defaults = [
+      {
+        period: '半年後',
+        title: '応募戦略を固める',
+        tasks: ['実績をKPIで棚卸しする', '職務経歴書をターゲット企業向けに調整', '企業研究テンプレートを作成'],
+      },
+      {
+        period: '1年後',
+        title: '強み領域で成果を再現',
+        tasks: ['入社先での初期成果を数値化', '上司評価と自己評価を接続', '次の役割拡張に向けた課題を整理'],
+      },
+      {
+        period: '3年後',
+        title: 'リード経験を積む',
+        tasks: ['チーム/プロジェクト推進を担当', '難易度の高い課題に挑戦', '社内外で専門性を発信'],
+      },
+      {
+        period: '5年後',
+        title: '事業価値を担うポジションへ',
+        tasks: ['事業KPI責任のある役割へ遷移', '後進育成と組織成果を両立', '次のキャリア選択肢を複線化'],
+      },
+    ]
+
+    return defaults.map((item, idx) => {
+      const ai = aiSteps[idx]
       return {
-        title: String(aiDetail.title || stepText || `${period}の計画`),
-        period: String(aiDetail.period || period),
-        why: String(aiDetail.why || 'この期間の積み上げが次のキャリア段階の選択肢を広げるためです。'),
-        actions,
-        caution: String(aiDetail.caution || '目標を広げすぎず、優先順位を2〜3点に絞って進めてください。'),
+        period: ai?.period || item.period,
+        title: ai?.title || item.title,
+        tasks: Array.isArray(ai?.actions) && ai.actions.length > 0 ? ai.actions.slice(0, 3) : item.tasks,
       }
     })
-  }, [aiInsights?.careerRoadmapDetails, result.roadmap])
+  }, [aiInsights?.careerRoadmapDetails])
 
-  const nextActionAccordionItems = useMemo(() => {
-    const aiDetails = Array.isArray(aiInsights?.nextActionDetails) ? aiInsights.nextActionDetails : []
-    return (result.actions || []).map((actionText, index) => {
-      const aiDetail = aiDetails[index] || {}
-      return {
-        title: String(aiDetail.title || actionText || `アクション${index + 1}`),
-        purpose: String(aiDetail.purpose || '転職判断の精度を高め、選考で再現性ある強みを示すためです。'),
-        steps: Array.isArray(aiDetail.steps) && aiDetail.steps.length > 0
-          ? aiDetail.steps
-          : [
-              '目標と期限を設定する',
-              '実行内容を週次で振り返る',
-            ],
-        deliverable: String(aiDetail.deliverable || '成果を示す資料、または実績サマリー'),
-        completionCriteria: String(aiDetail.completionCriteria || '具体成果を数値で説明できる状態'),
-      }
-    })
-  }, [aiInsights?.nextActionDetails, result.actions])
+  const aiSummary = aiInsights?.aiSummary || aiInsights?.summary || result.insights?.[0] || '現時点では市場価値が高く、準備次第でより良い条件の転職が狙えます。'
+  const positives = (aiInsights?.careerArchetype?.strengths || result.insights || []).slice(0, 3)
+  const warningCandidates = (aiInsights?.riskAnalysis || aiInsights?.careerArchetype?.risks || []).slice(0, 3)
+  const warnings = warningCandidates.length > 0
+    ? warningCandidates
+    : ['訴求ポイントが散らばると面接で強みが伝わりにくくなるため、軸の統一が必要です。', '希望条件を増やしすぎると選考母数が減るため、優先順位を決める必要があります。', '市場変動により採用要件が短期で変わるため、情報の更新頻度を上げる必要があります。']
 
-  const openModal = (company) => setOpenCompany(company)
-  const closeModal = () => setOpenCompany(null)
+  const risks = [
+    { title: '向いていない理由', detail: warnings[0] || '現時点では強みの再現性を示す具体エピソードが不足しています。' },
+    { title: '転職時の注意点', detail: warnings[1] || '応募企業ごとに訴求ポイントを調整しないと通過率が下がる可能性があります。' },
+    { title: '市場リスク', detail: warnings[2] || '市況変化により採用ポジションの難易度が変動するため、応募タイミングの見極めが重要です。' },
+  ]
+
+  const nextActionTexts = (aiInsights?.nextActions || result.actions || []).slice(0, 5)
+  const actionTitles = ['履歴書作成', '職務経歴書改善', '面接対策', '企業研究', 'AI相談']
+  const actions = actionTitles.map((title, idx) => ({
+    title,
+    time: idx < 2 ? '60分' : idx < 4 ? '45分' : '30分',
+    detail: nextActionTexts[idx] || '転職成功確率を上げるための実行アクションを具体化してください。',
+    cta: idx === 4 ? 'AIに相談する' : '着手する',
+  }))
+
+  const navSections = [
+    { id: 'overview', label: 'サマリー' },
+    { id: 'strength', label: '強み・弱み分析' },
+    { id: 'rankings', label: '業界・職種ランキング' },
+    { id: 'companies', label: 'おすすめ企業' },
+    { id: 'compare', label: '企業比較' },
+    { id: 'roadmap', label: 'ロードマップ' },
+    { id: 'ai-summary', label: 'AI総評' },
+    { id: 'risk', label: 'リスク分析' },
+    { id: 'actions', label: '次のアクション' },
+  ]
 
   if (!hasDiagnosisData) {
     return (
@@ -275,442 +321,48 @@ export default function Result() {
   }
 
   return (
-    <div className="bg-slate-50 text-slate-950">
+    <div className="bg-[#F8FAFC] text-slate-950">
       <Header />
-      <main className="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)] sm:p-10">
-          <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
-            <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-sky-500">AI分析レポート</p>
-              <h1 className="mt-4 text-3xl font-semibold text-slate-950 sm:text-4xl">あなたの市場価値とキャリア戦略</h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-                現在の職務と志向をもとに生成した、AI風のキャリア戦略ダッシュボードです。
-              </p>
-            </div>
-            <div className="rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-white shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-              <p className="text-sm uppercase tracking-[0.24em] text-sky-300">同世代比較</p>
-              <p className="mt-4 text-3xl font-semibold">{result.generationComparison}%</p>
-              <p className="mt-2 text-sm text-slate-300">年収・経験を同世代と比較した適合度</p>
-              <div className="mt-6">
-                <ProgressBar value={result.generationComparison} />
-              </div>
-            </div>
+      <main className="mx-auto max-w-[1400px] px-6 py-10 sm:px-8 lg:px-10">
+        {aiLoading && (
+          <div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">AI分析を更新しています...</div>
+        )}
+        {!aiLoading && aiError && (
+          <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{aiError}</div>
+        )}
+
+        <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+          <ResultSidebarNav
+            sections={navSections}
+            summary={{
+              score: `${marketMetrics.score} / 100`,
+              topIndustry: result.industries?.[0]?.label || '-',
+              topRole: result.roles?.[0]?.role || '-',
+              topCompany: recommendedCompanies?.[0]?.name || '-',
+            }}
+          />
+
+          <div className="space-y-5">
+            <MarketValueHero marketMetrics={marketMetrics} salarySeries={salarySeries} successRates={successRates} />
+            <StrengthRadarPanel data={radarData} />
+            <RankingPanels
+              industries={result.industries || []}
+              roles={result.roles || []}
+              industryReasons={industryReasons}
+              roleReasons={roleReasons}
+            />
+            <CompanyRecommendationSection companies={recommendedCompanies} />
+            <CompanyComparisonTable companies={recommendedCompanies} />
+            <RoadmapTimelineSection roadmapItems={roadmapItems} />
+            <DecisionPanels
+              aiSummary={aiSummary}
+              positives={positives.length > 0 ? positives : ['強みが明確で、候補企業との一致率が高いです。']}
+              warnings={warnings}
+              risks={risks}
+              actions={actions}
+            />
           </div>
-
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.95fr]">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-slate-500">市場価値スコア</p>
-                  <p className="mt-4 text-5xl font-semibold text-slate-950">{marketValueCard.score}</p>
-                </div>
-                <div className="rounded-[1.5rem] bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700">{form.role || '職種未設定'}</div>
-              </div>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-500">市場価値ランク</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">{marketValueCard.rank}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-500">市場価値順位</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">{marketValueCard.percentile}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-500">推定年収レンジ</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{marketValueCard.salary.current}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-500">3年後想定年収</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{marketValueCard.salary.y3}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
-                  <p className="text-xs text-slate-500">5年後想定年収</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{marketValueCard.salary.y5}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">市場価値比較レーダー</p>
-              <Suspense fallback={<div className="mt-6 h-[360px] flex items-center justify-center">読み込み中...</div>}>
-                <RadarWrapper data={result.radarData} />
-              </Suspense>
-            </div>
-          </div>
-
-          <div className="mt-10 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">向いている業界ランキング</p>
-              <div className="mt-6 space-y-4">
-                {result.industries.map((item, index) => (
-                  <div key={item.label} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-slate-950">{index + 1}. {item.label}</p>
-                        <p className="text-sm text-slate-500">適性 {item.score}%</p>
-                      </div>
-                      <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase text-sky-700">おすすめ</span>
-                    </div>
-                    <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-200">
-                      <div className="h-full rounded-full bg-sky-500" style={{ width: `${item.score}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">向いている職種ランキング</p>
-              <div className="mt-6 space-y-4">
-                {result.roles.map((item, index) => (
-                  <div key={item.role} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-slate-950">{index + 1}. {item.role}</p>
-                        <p className="text-sm text-slate-500">適性 {item.score}%</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-200">
-                      <div className="h-full rounded-full bg-sky-500" style={{ width: `${item.score}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-[0.24em] text-slate-500">おすすめ企業ランキング</p>
-                <h2 className="mt-3 text-2xl font-semibold text-slate-950">上位5社の企業候補</h2>
-                <p className="mt-2 text-sm text-slate-600">表示は上位5社までに絞り、100社以上の候補から特に合う企業を厳選しています。</p>
-                <p className="mt-2 text-xs text-slate-500">{aiLoading ? 'AI分析中...' : aiError || aiInsights?.aiSummary || aiInsights?.summary || 'AI分析中...'}</p>
-              </div>
-              <button onClick={() => setShowOtherCompanies((prev) => !prev)} className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100">
-                {showOtherCompanies ? 'その他候補企業を閉じる ▲' : 'その他候補企業を見る ▼'}
-              </button>
-            </div>
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              {recommendedCompanies.map((company, index) => (
-                <CompanyCard key={company.name} company={company} rank={index + 1} onDetail={openModal} />
-              ))}
-            </div>
-            {showOtherCompanies && (
-              <div className="mt-6 rounded-[2rem] border border-slate-200 bg-slate-50 p-6 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.24em] text-slate-500">その他の候補企業</p>
-                    <p className="mt-1 text-sm text-slate-600">6位〜20位までの候補を一覧表示します。</p>
-                  </div>
-                </div>
-                <div className="mt-6 grid gap-4">
-                  {result.otherCompanies.map((company, index) => (
-                    <div key={company.name} className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-950">{index + 6}. {company.name}</p>
-                        <p className="mt-2 text-sm text-slate-600">{company.recommendation}</p>
-                      </div>
-                      <div className="flex flex-col items-start gap-3 sm:items-end">
-                        <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">
-                          マッチ度 {company.overallFit}% ({Number(company.overallFit || 0) >= 80 ? '高' : Number(company.overallFit || 0) >= 65 ? '中' : '低'})
-                        </span>
-                        <button onClick={() => openModal(company)} className="inline-flex min-w-[120px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 transition hover:bg-slate-100">詳細を見る</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <section className="mt-10 rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm uppercase tracking-[0.24em] text-slate-500">AI分析サマリー</p>
-                <p className="mt-2 text-sm text-slate-600">Lambda Function から取得したAI分析結果を表示します。</p>
-                <details className="mt-2 rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-2 text-[11px] text-slate-500">
-                  <summary className="cursor-pointer select-none font-medium text-slate-500">開発用デバッグ情報</summary>
-                  <div className="mt-2 space-y-1 text-[11px] text-slate-500">
-                    <p>aiAnalysis.debugSource: {aiInsights?.debugSource || '-'}</p>
-                    <p>aiAnalysis.fallbackReason: {aiInsights?.fallbackReason || '-'}</p>
-                    <p>aiAnalysis.researchSource: {aiInsights?.researchSource || aiInsights?.debug?.researchSource || '-'}</p>
-                    <p>aiAnalysis.researchedCompanyCount: {aiInsights?.researchedCompanyCount ?? aiInsights?.debug?.researchedCompanyCount ?? '-'}</p>
-                    <p>aiAnalysis.totalProcessingMs: {aiInsights?.totalProcessingMs ?? aiInsights?.debug?.totalProcessingMs ?? '-'}</p>
-                  </div>
-                </details>
-              </div>
-            </div>
-
-            {aiLoading && (
-              <div className="mt-6 rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm font-medium text-slate-600">
-                AI分析中...
-              </div>
-            )}
-
-            {!aiLoading && aiError && (
-              <div className="mt-6 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-700">
-                AI分析を取得できませんでした
-              </div>
-            )}
-
-            {!aiLoading && !aiError && aiInsights && (
-              <div className="mt-6 grid gap-6">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">AIキャリア戦略レポート</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">{aiInsights.aiSummary || aiInsights.summary || 'AIサマリーはありません。'}</p>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">キャリアタイプ</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">{aiInsights.careerArchetype?.type || '未設定'}</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">{aiInsights.careerArchetype?.summary || '概要なし'}</p>
-                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Strengths</p>
-                      <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                        {(aiInsights.careerArchetype?.strengths || []).length > 0 ? (aiInsights.careerArchetype?.strengths || []).map((item) => <li key={item}>- {item}</li>) : <li>- なし</li>}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Risks</p>
-                      <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                        {(aiInsights.careerArchetype?.risks || []).length > 0 ? (aiInsights.careerArchetype?.risks || []).map((item) => <li key={item}>- {item}</li>) : <li>- なし</li>}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">市場価値</p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">score</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.score ?? '-'}</p></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">percentile</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.percentile || '-'}</p></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">current</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.currentEstimatedSalaryRange || '-'}</p></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">3 years</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.threeYearSalaryRange || '-'}</p></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">5 years</p><p className="mt-1 text-sm font-semibold text-slate-900">{aiInsights.marketValue?.fiveYearSalaryRange || '-'}</p></div>
-                  </div>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">{aiInsights.marketValue?.evaluation || '評価情報なし'}</p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5 text-xs text-slate-600">
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">skillRarity: {aiInsights.marketValue?.breakdown?.skillRarity ?? '-'}</div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">industryDemand: {aiInsights.marketValue?.breakdown?.industryDemand ?? '-'}</div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">transferability: {aiInsights.marketValue?.breakdown?.transferability ?? '-'}</div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">managementPotential: {aiInsights.marketValue?.breakdown?.managementPotential ?? '-'}</div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">growthPotential: {aiInsights.marketValue?.breakdown?.growthPotential ?? '-'}</div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">キャリアシナリオ</p>
-                  <div className="mt-4 grid gap-3">
-                    {(aiInsights.careerScenarios || []).length > 0 ? (aiInsights.careerScenarios || []).map((scenario) => (
-                      <div key={scenario.title} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-sm font-semibold text-slate-900">{scenario.title}</p>
-                        <p className="mt-1 text-xs text-slate-600">{scenario.targetRole} / {scenario.targetIndustry}</p>
-                        <p className="mt-1 text-xs text-slate-600">{scenario.expectedSalaryRange} | {scenario.timeline}</p>
-                        <p className="mt-2 text-sm text-slate-600">{scenario.reason}</p>
-                        <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                          {(scenario.requiredActions || []).map((item) => <li key={item}>- {item}</li>)}
-                        </ul>
-                      </div>
-                    )) : <p className="text-sm text-slate-600">シナリオはありません。</p>}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">企業別攻略レポート</p>
-                  <div className="mt-4 grid gap-3">
-                    {companyStrategyReportsForView.length > 0 ? companyStrategyReportsForView.map((report) => (
-                      <div key={report.companyName} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-900">{report.companyName}</p>
-                          <span className="text-xs font-semibold text-blue-700">適性スコア {report.fitScore}</span>
-                        </div>
-                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">事業・プロダクト特徴</p>
-                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.businessProductFeatures || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">ユーザー経験との具体的な接点</p>
-                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.userConnectionPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-1 text-xs text-slate-600">想定ポジション: {report.expectedRole}</p>
-                        {report.recommendationReason.length > 0 && <>
-                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">推薦理由</p>
-                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.recommendationReason.map((item) => <li key={item}>- {item}</li>)}</ul>
-                        </>}
-                        {report.concernPoints.length > 0 && <>
-                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">懸念点</p>
-                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.concernPoints.map((item) => <li key={item}>- {item}</li>)}</ul>
-                        </>}
-                        {report.interviewAppealPoints.length > 0 && <>
-                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">面接で訴求すべきポイント</p>
-                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.interviewAppealPoints.map((item) => <li key={item}>- {item}</li>)}</ul>
-                        </>}
-                        {report.preparationActions.length > 0 && <>
-                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">選考前にやるべき準備</p>
-                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.preparationActions.map((item) => <li key={item}>- {item}</li>)}</ul>
-                        </>}
-                        <p className="mt-2 text-xs text-slate-600">内定可能性の目安: {report.estimatedOfferProbability}</p>
-                      </div>
-                    )) : <p className="text-sm text-slate-600">企業別レポートはありません。</p>}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">キャリアロードマップ</p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next1Month</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next1Month || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next3Months</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next3Months || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next6Months</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next6Months || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next1Year</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next1Year || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs font-semibold text-slate-500">next3Years</p><ul className="mt-2 space-y-1 text-sm text-slate-600">{(aiInsights.careerRoadmap?.next3Years || []).map((item) => <li key={item}>- {item}</li>)}</ul></div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">aiSummary</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">{aiInsights.aiSummary || aiInsights.summary || 'AIサマリーはありません。'}</p>
-                </div>
-
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                    <p className="text-sm font-semibold text-slate-900">riskAnalysis</p>
-                    <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
-                      {(aiInsights.riskAnalysis || []).length > 0 ? (aiInsights.riskAnalysis || []).map((item) => (
-                        <li key={item}>- {item}</li>
-                      )) : <li>リスク分析はありません。</li>}
-                    </ul>
-                  </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                    <p className="text-sm font-semibold text-slate-900">nextActions</p>
-                    <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
-                      {(aiInsights.nextActions || []).length > 0 ? (aiInsights.nextActions || []).map((item) => (
-                        <li key={item}>- {item}</li>
-                      )) : <li>次アクションはありません。</li>}
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-900">companyInsights</p>
-                  <div className="mt-4 grid gap-3">
-                    {(aiInsights.companyInsights || aiInsights.companies || []).length > 0 ? (aiInsights.companyInsights || aiInsights.companies || []).map((item) => (
-                      <div key={item.companyName} className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <p className="text-sm font-semibold text-slate-900">{item.companyName}</p>
-                        <p className="mt-1 text-sm text-slate-600">{item.summary || item.recommendationTitle || '概要なし'}</p>
-                      </div>
-                    )) : <p className="text-sm text-slate-600">企業別インサイトはありません。</p>}
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-slate-400">AI Source: {aiInsights.debugSource || 'mock'}</p>
-              </div>
-            )}
-          </section>
-
-          <CompanyModal open={!!selectedCompany} onClose={closeModal} company={selectedCompany} />
-          <MarketValueModal open={openMarket} onClose={() => setOpenMarket(false)} form={form} result={result} />
-
-          <section className="mt-10 rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm uppercase tracking-[0.24em] text-slate-500">企業比較</p>
-                <p className="mt-2 text-sm text-slate-600">おすすめ企業のスコアとフィット感をすばやく比較できます。</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={() => setOpenMarket(true)} className="rounded-3xl bg-white px-4 py-2 text-sm border">市場価値の詳細を見る</button>
-              </div>
-            </div>
-            <div className="mt-6 overflow-hidden rounded-[1.75rem] bg-white">
-              <Suspense fallback={<div className="p-6">読み込み中...</div>}>
-                <StarGrid companies={result.comparison} metrics={['年収', '成長環境', '裁量', '安定性', 'カルチャー適合', '働き方適合']} highlighted={highlightedMetric} />
-              </Suspense>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {['年収', '成長環境', '裁量', '安定性', 'カルチャー適合', '働き方適合'].map((m) => (
-                  <button key={m} onClick={() => setHighlightedMetric(highlightedMetric === m ? '' : m)} className={`rounded-full px-3 py-2 text-sm ${highlightedMetric === m ? 'bg-sky-500 text-white' : 'bg-slate-100'}`}>{m}</button>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">5年キャリアロードマップ</p>
-              <div className="mt-6 space-y-3">
-                {roadmapAccordionItems.map((item, index) => (
-                  <div key={`${item.period}-${item.title}`} className="rounded-2xl border border-slate-200 bg-slate-50">
-                    <button
-                      type="button"
-                      onClick={() => setOpenRoadmapIndex((prev) => (prev === index ? -1 : index))}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                    >
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{item.period}</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">{item.title}</p>
-                      </div>
-                      <span className="text-sm text-slate-500">{openRoadmapIndex === index ? '▲' : '▼'}</span>
-                    </button>
-                    {openRoadmapIndex === index && (
-                      <div className="border-t border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
-                        <p className="font-semibold text-slate-900">その期間にやるべきこと</p>
-                        <ul className="mt-2 space-y-1">
-                          {item.actions.map((action) => <li key={action}>- {action}</li>)}
-                        </ul>
-                        <p className="mt-3 font-semibold text-slate-900">なぜそれが必要か</p>
-                        <p className="mt-1 text-slate-600">{item.why}</p>
-                        <p className="mt-3 font-semibold text-slate-900">具体アクション</p>
-                        <p className="mt-1 text-slate-600">優先タスクを2つに絞り、週次レビューで進捗を可視化してください。</p>
-                        <p className="mt-3 font-semibold text-slate-900">注意点</p>
-                        <p className="mt-1 text-slate-600">{item.caution}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">今からやるべき3つのアクション</p>
-              <div className="mt-6 space-y-3 text-sm leading-7 text-slate-700">
-                {nextActionAccordionItems.map((item, index) => (
-                  <div key={`${index}-${item.title}`} className="rounded-2xl border border-slate-200 bg-slate-50">
-                    <button
-                      type="button"
-                      onClick={() => setOpenActionIndex((prev) => (prev === index ? -1 : index))}
-                      className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left"
-                    >
-                      <div className="flex items-start gap-3 text-slate-950">
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">{index + 1}</span>
-                        <span>{item.title}</span>
-                      </div>
-                      <span className="text-sm text-slate-500">{openActionIndex === index ? '▲' : '▼'}</span>
-                    </button>
-                    {openActionIndex === index && (
-                      <div className="border-t border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
-                        <p className="font-semibold text-slate-900">目的</p>
-                        <p className="mt-1 text-slate-600">{item.purpose}</p>
-                        <p className="mt-3 font-semibold text-slate-900">具体的な進め方</p>
-                        <ul className="mt-1 space-y-1">
-                          {item.steps.map((step) => <li key={step}>- {step}</li>)}
-                        </ul>
-                        <p className="mt-3 font-semibold text-slate-900">成果物イメージ</p>
-                        <p className="mt-1 text-slate-600">{item.deliverable}</p>
-                        <p className="mt-3 font-semibold text-slate-900">完了条件</p>
-                        <p className="mt-1 text-slate-600">{item.completionCriteria}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-12 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <button className="inline-flex items-center justify-center rounded-full bg-slate-950 px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-slate-950/10 transition hover:bg-slate-800" onClick={() => navigate('/assessment')}>
-              再診断する
-            </button>
-            <p className="max-w-2xl text-sm text-slate-600">
-              AI風ダミーロジックで結果を生成しています。入力内容に応じて適性と企業候補を反映します。
-            </p>
-          </div>
-        </section>
+        </div>
       </main>
     </div>
   )
