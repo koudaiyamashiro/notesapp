@@ -625,6 +625,60 @@ function inferCompanyFocus(companyName: string, researchSummary: string) {
     }
   }
 
+  if (lower.includes('preferred networks') || lower.includes('preferred') || lower.includes('pfn')) {
+    return {
+      focus: '深層学習/AI研究開発',
+      caution: '技術検証の深さと実装スピードの両立が求められる可能性があります。',
+      appeal: '研究成果をプロダクト価値へ転換した経験を示すと有効です。',
+      prep: 'モデル改善の検証設計と効果指標を、再現可能な形で整理してください。',
+    }
+  }
+
+  if (lower.includes('hacarus')) {
+    return {
+      focus: '少量データAI/医療・製造向けAI',
+      caution: 'データ制約下での精度担保と業務適用の説明力が求められる可能性があります。',
+      appeal: '限られたデータで成果を出した検証プロセスを示すと有効です。',
+      prep: '医療・製造領域のユースケースを、課題と導入効果で整理してください。',
+    }
+  }
+
+  if (lower.includes('layerx')) {
+    return {
+      focus: 'SaaS/バックオフィスDX/AI SaaS',
+      caution: '高速なプロダクト改善サイクルへの適応が求められる可能性があります。',
+      appeal: '業務課題をSaaS機能改善へ落とし込んだ経験を示すと有効です。',
+      prep: '経理・バックオフィス領域の改善事例をKPI付きで整理してください。',
+    }
+  }
+
+  if (lower.includes('ベイカレント') || lower.includes('baycurrent')) {
+    return {
+      focus: '戦略/業務改革/ITコンサル',
+      caution: '上流案件での論点整理と推進責任が高い可能性があります。',
+      appeal: '経営課題を実行計画に落とした経験を示すと有効です。',
+      prep: '上流案件の成果を、論点・施策・成果で構造化して準備してください。',
+    }
+  }
+
+  if (lower.includes('アクセンチュア') || lower.includes('accenture')) {
+    return {
+      focus: 'DX/Technology Strategy/大規模変革',
+      caution: '複雑なステークホルダー調整と高い実行品質が求められる可能性があります。',
+      appeal: '大規模変革案件での推進経験を、成果指標とともに示すと有効です。',
+      prep: '技術戦略と実行計画の接続を示す事例を、役割別に整理してください。',
+    }
+  }
+
+  if (lower.includes('リクルート') || lower.includes('recruit')) {
+    return {
+      focus: '事業企画/プロダクト改善/KPI改善',
+      caution: '高速な仮説検証サイクルでの意思決定速度が求められる可能性があります。',
+      appeal: 'KPI改善に直結した企画・実行経験を示すと有効です。',
+      prep: 'プロダクト改善の打ち手とKPI変化を、時系列で整理してください。',
+    }
+  }
+
   if (lower.includes('クラウド')) {
     return {
       focus: 'クラウド活用',
@@ -651,7 +705,85 @@ function inferCompanyFocus(companyName: string, researchSummary: string) {
   }
 }
 
-function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[], companyResearch: CompanyResearchItem[], useFallbackDefaults = true) {
+function isLowQualityCompanyReport(report: Record<string, unknown>) {
+  const expectedRole = String(report.expectedRole || '').trim()
+  const recommendationReason = asStringArray(report.recommendationReason, 5)
+  const concernPoints = asStringArray(report.concernPoints, 5)
+  const interviewAppealPoints = asStringArray(report.interviewAppealPoints, 5)
+  const preparationActions = asStringArray(report.preparationActions, 5)
+  const estimatedOfferProbability = String(report.estimatedOfferProbability || '').trim()
+
+  if (!expectedRole || !estimatedOfferProbability) return true
+  if (recommendationReason.length === 0 || concernPoints.length === 0 || interviewAppealPoints.length === 0 || preparationActions.length === 0) return true
+
+  const genericPatterns = [
+    '現在の経験を活かしやすい',
+    '希望する働き方との整合性がある',
+    '成果期待が高い',
+    '面接では成果を数値で示す',
+    'star形式で準備する',
+  ]
+  const combined = [expectedRole, ...recommendationReason, ...concernPoints, ...interviewAppealPoints, ...preparationActions].join(' ')
+  const normalized = combined.toLowerCase()
+  const hasOnlyGeneric = genericPatterns.some((pattern) => combined.includes(pattern))
+  const hasCompanySpecificSignal =
+    /ai|dx|データ|生成ai|azure|copilot|エンタープライズ|深層学習|医療|製造|クラウド|saas|コンサル|業務改革|kpi|バックオフィス/.test(normalized)
+
+  return hasOnlyGeneric && !hasCompanySpecificSignal
+}
+
+function buildCompanySpecificFallback(
+  companyName: string,
+  researchSummary: string,
+  baseCompany: Record<string, unknown>,
+  userProfile: Record<string, unknown>
+) {
+  const focus = inferCompanyFocus(companyName, researchSummary)
+  const role = String(userProfile.role || '')
+  const expectedRole = role ? `${role}（${focus.focus}領域）` : `${focus.focus}に関わる推進ポジション`
+  const fitScore = asSafeNumber((baseCompany as Record<string, any>).overallFit ?? (baseCompany as Record<string, any>).matchScore, 75, 40, 99)
+  return {
+    companyName,
+    fitScore,
+    expectedRole,
+    recommendationReason: [
+      `公開情報ベースでは、${companyName}は${focus.focus}を重視しており、経験を事業課題解決へ転換できる可能性があります。`,
+    ],
+    concernPoints: [focus.caution],
+    interviewAppealPoints: [focus.appeal],
+    preparationActions: [focus.prep],
+    estimatedOfferProbability: fitScore >= 85 ? '中〜高（目安）' : '中（目安）',
+  }
+}
+
+function enrichCompanyStrategyReport(openAIReport: Record<string, unknown>, fallbackReport: Record<string, unknown>) {
+  const recommendationReason = asStringArray(openAIReport.recommendationReason, 4)
+  const concernPoints = asStringArray(openAIReport.concernPoints, 4)
+  const interviewAppealPoints = asStringArray(openAIReport.interviewAppealPoints, 4)
+  const preparationActions = asStringArray(openAIReport.preparationActions, 4)
+  const expectedRole = String(openAIReport.expectedRole || '').trim()
+  const estimatedOfferProbability = String(openAIReport.estimatedOfferProbability || '').trim()
+
+  return {
+    ...fallbackReport,
+    companyName: String(openAIReport.companyName || fallbackReport.companyName || ''),
+    fitScore: asSafeNumber(openAIReport.fitScore, asSafeNumber(fallbackReport.fitScore, 75, 40, 99), 40, 99),
+    expectedRole: expectedRole || String(fallbackReport.expectedRole || ''),
+    recommendationReason: recommendationReason.length > 0 ? recommendationReason : asStringArray(fallbackReport.recommendationReason, 4),
+    concernPoints: concernPoints.length > 0 ? concernPoints : asStringArray(fallbackReport.concernPoints, 4),
+    interviewAppealPoints: interviewAppealPoints.length > 0 ? interviewAppealPoints : asStringArray(fallbackReport.interviewAppealPoints, 4),
+    preparationActions: preparationActions.length > 0 ? preparationActions : asStringArray(fallbackReport.preparationActions, 4),
+    estimatedOfferProbability: estimatedOfferProbability || String(fallbackReport.estimatedOfferProbability || ''),
+  }
+}
+
+function normalizeCompanyStrategyReports(
+  value: unknown,
+  topCompanies: unknown[],
+  companyResearch: CompanyResearchItem[],
+  userProfile: Record<string, unknown>,
+  useFallbackDefaults = true
+) {
   const byName = new Map(
     asArray(value)
       .filter((item) => item && typeof item === 'object')
@@ -665,34 +797,12 @@ function normalizeCompanyStrategyReports(value: unknown, topCompanies: unknown[]
     const name = String(base.name || `Company ${index + 1}`)
     const source = byName.get(name) || {}
     const researchSummary = String(researchByName.get(name) || '')
-    const focus = inferCompanyFocus(name, researchSummary)
-    const recommendationReason = asStringArray((source as Record<string, unknown>).recommendationReason, 4)
-    const concernPoints = asStringArray((source as Record<string, unknown>).concernPoints, 4)
-    const interviewAppealPoints = asStringArray((source as Record<string, unknown>).interviewAppealPoints, 4)
-    const preparationActions = asStringArray((source as Record<string, unknown>).preparationActions, 4)
-
-    const resolvedRecommendationReason =
-      recommendationReason.length > 0
-        ? recommendationReason
-        : [
-            `${name}は${focus.focus}の文脈で、これまでの経験を活かせる可能性があります。`,
-            '公開情報ベースでは、役割期待と経験の接点を作りやすいと考えられます。',
-          ]
-
-    const resolvedConcernPoints = concernPoints.length > 0 ? concernPoints : [focus.caution]
-    const resolvedInterviewAppealPoints = interviewAppealPoints.length > 0 ? interviewAppealPoints : [focus.appeal]
-    const resolvedPreparationActions = preparationActions.length > 0 ? preparationActions : [focus.prep]
-
-    return {
-      companyName: name,
-      fitScore: asSafeNumber((source as Record<string, unknown>).fitScore ?? base.overallFit ?? base.matchScore, 75, 40, 99),
-      expectedRole: String((source as Record<string, unknown>).expectedRole || '想定ポジション未設定'),
-      recommendationReason: resolvedRecommendationReason,
-      concernPoints: resolvedConcernPoints,
-      interviewAppealPoints: resolvedInterviewAppealPoints,
-      preparationActions: resolvedPreparationActions,
-      estimatedOfferProbability: String((source as Record<string, unknown>).estimatedOfferProbability || '中（目安）'),
+    const fallbackReport = buildCompanySpecificFallback(name, researchSummary, base, userProfile)
+    const enrichedReport = enrichCompanyStrategyReport(source, fallbackReport)
+    if (useFallbackDefaults && isLowQualityCompanyReport(enrichedReport)) {
+      return fallbackReport
     }
+    return enrichedReport
   })
 }
 
@@ -1053,9 +1163,7 @@ async function generateWithOpenAI(
   }
 
   const hasOpenAICompanyStrategyReports = Array.isArray(parsedObject.companyStrategyReports) && asArray(parsedObject.companyStrategyReports).length > 0
-  const companyStrategyReportsRaw = hasOpenAICompanyStrategyReports
-    ? normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch, false)
-    : normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch, true)
+  const companyStrategyReportsRaw = normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, topCompanies, companyResearch, userProfile, true)
   if (!hasOpenAICompanyStrategyReports) {
     isPartial = true
     missingFields.push('companyStrategyReports')

@@ -64,6 +64,37 @@ function getSalaryProjection(income) {
 }
 
 function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
+
+  function sanitizeCompanyStrategyReportForView(report) {
+    if (!report || typeof report !== 'object') return null
+    const toList = (value) => (Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [])
+    const expectedRole = String(report.expectedRole || '').trim()
+    const estimatedOfferProbability = String(report.estimatedOfferProbability || '').trim()
+    const recommendationReason = toList(report.recommendationReason)
+    const concernPoints = toList(report.concernPoints)
+    const interviewAppealPoints = toList(report.interviewAppealPoints)
+    const preparationActions = toList(report.preparationActions)
+
+    const hasAllRequired =
+      expectedRole &&
+      estimatedOfferProbability &&
+      recommendationReason.length > 0 &&
+      concernPoints.length > 0 &&
+      interviewAppealPoints.length > 0 &&
+      preparationActions.length > 0
+
+    if (!hasAllRequired) return null
+
+    return {
+      ...report,
+      expectedRole,
+      estimatedOfferProbability,
+      recommendationReason,
+      concernPoints,
+      interviewAppealPoints,
+      preparationActions,
+    }
+  }
   return baseCompanies.map((company) => {
     const aiCompany = aiCompanies.find((item) => item.companyName === company.name)
     if (!aiCompany) return company
@@ -139,6 +170,11 @@ export default function Result() {
   )
 
   const marketValueCard = useMemo(() => {
+
+      const companyStrategyReportsForView = useMemo(
+        () => (aiInsights?.companyStrategyReports || []).map((report) => sanitizeCompanyStrategyReportForView(report)).filter(Boolean),
+        [aiInsights?.companyStrategyReports]
+      )
     const score = Number(aiInsights?.marketValue?.score || result.score || 0)
     const rank = getMarketRank(score)
     const percentile = aiInsights?.marketValue?.percentile || getPercentileText(score)
@@ -359,8 +395,6 @@ export default function Result() {
                 <details className="mt-2 rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-2 text-[11px] text-slate-500">
                   <summary className="cursor-pointer select-none font-medium text-slate-500">開発用デバッグ情報</summary>
                   <div className="mt-2 space-y-1 text-[11px] text-slate-500">
-                    <p>frontendDebugVersion: 2026-06-19-frontend-v1</p>
-                    <p>aiAnalysis.debugVersion: {aiInsights?.debugVersion || '-'}</p>
                     <p>aiAnalysis.debugSource: {aiInsights?.debugSource || '-'}</p>
                     <p>aiAnalysis.fallbackReason: {aiInsights?.fallbackReason || '-'}</p>
                     <p>aiAnalysis.researchSource: {aiInsights?.researchSource || aiInsights?.debug?.researchSource || '-'}</p>
@@ -449,21 +483,29 @@ export default function Result() {
                 <div className="rounded-3xl border border-slate-200 bg-white p-5">
                   <p className="text-sm font-semibold text-slate-900">企業別攻略レポート</p>
                   <div className="mt-4 grid gap-3">
-                    {(aiInsights.companyStrategyReports || []).length > 0 ? (aiInsights.companyStrategyReports || []).map((report) => (
+                    {companyStrategyReportsForView.length > 0 ? companyStrategyReportsForView.map((report) => (
                       <div key={report.companyName} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-slate-900">{report.companyName}</p>
                           <span className="text-xs font-semibold text-blue-700">適性スコア {report.fitScore}</span>
                         </div>
                         <p className="mt-1 text-xs text-slate-600">想定ポジション: {report.expectedRole}</p>
-                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">推薦理由</p>
-                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.recommendationReason || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">懸念点</p>
-                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.concernPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">面接で訴求すべきポイント</p>
-                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.interviewAppealPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
-                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">選考前にやるべき準備</p>
-                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.preparationActions || []).map((item) => <li key={item}>- {item}</li>)}</ul>
+                        {report.recommendationReason.length > 0 && <>
+                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">推薦理由</p>
+                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.recommendationReason.map((item) => <li key={item}>- {item}</li>)}</ul>
+                        </>}
+                        {report.concernPoints.length > 0 && <>
+                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">懸念点</p>
+                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.concernPoints.map((item) => <li key={item}>- {item}</li>)}</ul>
+                        </>}
+                        {report.interviewAppealPoints.length > 0 && <>
+                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">面接で訴求すべきポイント</p>
+                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.interviewAppealPoints.map((item) => <li key={item}>- {item}</li>)}</ul>
+                        </>}
+                        {report.preparationActions.length > 0 && <>
+                          <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">選考前にやるべき準備</p>
+                          <ul className="mt-1 space-y-1 text-sm text-slate-600">{report.preparationActions.map((item) => <li key={item}>- {item}</li>)}</ul>
+                        </>}
                         <p className="mt-2 text-xs text-slate-600">内定可能性の目安: {report.estimatedOfferProbability}</p>
                       </div>
                     )) : <p className="text-sm text-slate-600">企業別レポートはありません。</p>}
