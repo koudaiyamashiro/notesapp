@@ -95,6 +95,8 @@ function sanitizeCompanyStrategyReportForView(report) {
   try {
     if (!report || typeof report !== 'object') return null
     const toList = (value) => (Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [])
+    const businessProductFeatures = toList(report.businessProductFeatures)
+    const userConnectionPoints = toList(report.userConnectionPoints)
     const expectedRole = String(report.expectedRole || '').trim()
     const estimatedOfferProbability = String(report.estimatedOfferProbability || '').trim()
     const recommendationReason = toList(report.recommendationReason)
@@ -103,17 +105,21 @@ function sanitizeCompanyStrategyReportForView(report) {
     const preparationActions = toList(report.preparationActions)
 
     const hasAllRequired =
+      businessProductFeatures.length > 1 &&
+      userConnectionPoints.length > 1 &&
       expectedRole &&
       estimatedOfferProbability &&
-      recommendationReason.length > 0 &&
-      concernPoints.length > 0 &&
-      interviewAppealPoints.length > 0 &&
-      preparationActions.length > 0
+      recommendationReason.length > 1 &&
+      concernPoints.length > 1 &&
+      interviewAppealPoints.length > 1 &&
+      preparationActions.length > 1
 
     if (!hasAllRequired) return null
 
     return {
       ...report,
+      businessProductFeatures,
+      userConnectionPoints,
       expectedRole,
       estimatedOfferProbability,
       recommendationReason,
@@ -521,6 +527,10 @@ export default function Result() {
                           <p className="text-sm font-semibold text-slate-900">{report.companyName}</p>
                           <span className="text-xs font-semibold text-blue-700">適性スコア {report.fitScore}</span>
                         </div>
+                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">事業・プロダクト特徴</p>
+                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.businessProductFeatures || []).map((item) => <li key={item}>- {item}</li>)}</ul>
+                        <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">ユーザー経験との具体的な接点</p>
+                        <ul className="mt-1 space-y-1 text-sm text-slate-600">{(report.userConnectionPoints || []).map((item) => <li key={item}>- {item}</li>)}</ul>
                         <p className="mt-1 text-xs text-slate-600">想定ポジション: {report.expectedRole}</p>
                         {report.recommendationReason.length > 0 && <>
                           <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-slate-500">推薦理由</p>

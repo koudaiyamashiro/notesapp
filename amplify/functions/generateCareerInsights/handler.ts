@@ -1,9 +1,9 @@
 declare const process: { env: Record<string, string | undefined> }
 
 const DEBUG_VERSION = '2026-06-19-debug-v1'
-const MAX_PROMPT_CHARS = 8000
-const TAVILY_PER_COMPANY_TIMEOUT_MS = 3500
-const TAVILY_TOTAL_TIMEOUT_MS = 9000
+const MAX_PROMPT_CHARS = 16000
+const TAVILY_PER_COMPANY_TIMEOUT_MS = 4000
+const TAVILY_TOTAL_TIMEOUT_MS = 15000
 const OPENAI_TIMEOUT_MS = 30000
 const OPENAI_RESPONSE_JSON_SCHEMA = {
   type: 'object',
@@ -108,6 +108,16 @@ const OPENAI_RESPONSE_JSON_SCHEMA = {
         additionalProperties: false,
         required: [
           'companyName',
+          'businessProductFeatures',
+          'userConnectionPoints',
+          'businessModel',
+          'mainProducts',
+          'industryTrend',
+          'requiredSkills',
+          'fitReasons',
+          'riskReasons',
+          'interviewTopics',
+          'preparationChecklist',
           'fitScore',
           'expectedRole',
           'recommendationReason',
@@ -118,12 +128,22 @@ const OPENAI_RESPONSE_JSON_SCHEMA = {
         ],
         properties: {
           companyName: { type: 'string' },
+          businessProductFeatures: { type: 'array', minItems: 2, items: { type: 'string' } },
+          userConnectionPoints: { type: 'array', minItems: 2, items: { type: 'string' } },
+          businessModel: { type: 'string' },
+          mainProducts: { type: 'array', minItems: 2, items: { type: 'string' } },
+          industryTrend: { type: 'string' },
+          requiredSkills: { type: 'array', minItems: 2, items: { type: 'string' } },
+          fitReasons: { type: 'array', minItems: 2, items: { type: 'string' } },
+          riskReasons: { type: 'array', minItems: 2, items: { type: 'string' } },
+          interviewTopics: { type: 'array', minItems: 2, items: { type: 'string' } },
+          preparationChecklist: { type: 'array', minItems: 2, items: { type: 'string' } },
           fitScore: { type: 'number' },
           expectedRole: { type: 'string' },
-          recommendationReason: { type: 'array', minItems: 1, items: { type: 'string' } },
-          concernPoints: { type: 'array', minItems: 1, items: { type: 'string' } },
-          interviewAppealPoints: { type: 'array', minItems: 1, items: { type: 'string' } },
-          preparationActions: { type: 'array', minItems: 1, items: { type: 'string' } },
+          recommendationReason: { type: 'array', minItems: 2, items: { type: 'string' } },
+          concernPoints: { type: 'array', minItems: 2, items: { type: 'string' } },
+          interviewAppealPoints: { type: 'array', minItems: 2, items: { type: 'string' } },
+          preparationActions: { type: 'array', minItems: 2, items: { type: 'string' } },
           estimatedOfferProbability: { type: 'string' },
         },
       },
@@ -189,6 +209,16 @@ type CareerInsightsResponse = {
   }>
   companyStrategyReports: Array<{
     companyName: string
+    businessProductFeatures: string[]
+    userConnectionPoints: string[]
+    businessModel: string
+    mainProducts: string[]
+    industryTrend: string
+    requiredSkills: string[]
+    fitReasons: string[]
+    riskReasons: string[]
+    interviewTopics: string[]
+    preparationChecklist: string[]
     fitScore: number
     expectedRole: string
     recommendationReason: string[]
@@ -234,6 +264,15 @@ type OpenAIError = Error & {
 type CompanyResearchItem = {
   companyName: string
   researchSummary: string
+  researchSections: {
+    business: string[]
+    products: string[]
+    hiring: string[]
+    news: string[]
+    ir: string[]
+    competitors: string[]
+    reviews: string[]
+  }
 }
 
 type CompanyResearchMeta = {
@@ -275,58 +314,86 @@ function compressResearchText(text: string, minLength = 200, maxLength = 300) {
 }
 
 async function fetchCompanyResearchFromTavily(apiKey: string, companyName: string) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), TAVILY_PER_COMPANY_TIMEOUT_MS)
-  const query = [
-    `${companyName} 会社概要`,
-    `${companyName} 主力プロダクト サービス`,
-    `${companyName} 注力領域 採用 求める人物像`,
-    `${companyName} 働き方 カルチャー`,
-    `${companyName} 直近ニュース プレスリリース`,
-    `${companyName} 想定リスク`,
-  ].join(' ')
+  const sectionQueries: Array<[keyof CompanyResearchItem['researchSections'], string]> = [
+    ['business', `${companyName} 会社概要 事業内容 主要サービス`],
+    ['products', `${companyName} 製品 サービス 導入事例`],
+    ['hiring', `${companyName} 採用ページ 求める人物像 カルチャー`],
+    ['news', `${companyName} ニュース プレスリリース 直近`],
+    ['ir', `${companyName} IR 中期経営計画 成長戦略`],
+    ['competitors', `${companyName} 競合 比較 市場ポジション`],
+    ['reviews', `${companyName} 口コミ 評判 働きがい`],
+  ]
 
-  try {
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        search_depth: 'basic',
-        max_results: 4,
-        include_answer: true,
-        include_raw_content: false,
-      }),
-    })
-
-    if (!response.ok) {
-      return ''
-    }
-
-    const payload = await response.json()
-    const answer = typeof payload?.answer === 'string' ? payload.answer : ''
-    const snippets = asArray(payload?.results)
-      .slice(0, 4)
-      .map((item) => {
-        if (!item || typeof item !== 'object') return ''
-        return safeText((item as Record<string, unknown>).content, 180)
+  async function fetchSection(query: string) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), TAVILY_PER_COMPANY_TIMEOUT_MS)
+    try {
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          api_key: apiKey,
+          query,
+          search_depth: 'basic',
+          max_results: 3,
+          include_answer: true,
+          include_raw_content: false,
+        }),
       })
-      .filter(Boolean)
 
-    return compressResearchText([answer, ...snippets].join(' '), 200, 300)
-  } catch {
-    return ''
-  } finally {
-    clearTimeout(timeoutId)
+      if (!response.ok) {
+        return ''
+      }
+
+      const payload = await response.json()
+      const answer = typeof payload?.answer === 'string' ? payload.answer : ''
+      const snippets = asArray(payload?.results)
+        .slice(0, 3)
+        .map((item) => {
+          if (!item || typeof item !== 'object') return ''
+          const title = safeText((item as Record<string, unknown>).title, 80)
+          const content = safeText((item as Record<string, unknown>).content, 180)
+          const url = safeText((item as Record<string, unknown>).url, 120)
+          return [title, content, url].filter(Boolean).join(' | ')
+        })
+        .filter(Boolean)
+
+      return compressResearchText([answer, ...snippets].join(' '), 120, 420)
+    } catch {
+      return ''
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  const sectionEntries = await Promise.allSettled(sectionQueries.map(([, query]) => fetchSection(query)))
+  const researchSections = sectionQueries.reduce((accumulator, [section], index) => {
+    const result = sectionEntries[index]
+    const sectionText = result && result.status === 'fulfilled' ? result.value : ''
+    accumulator[section] = sectionText ? [sectionText] : []
+    return accumulator
+  }, {} as CompanyResearchItem['researchSections'])
+
+  const researchSummary = compressResearchText(
+    Object.values(researchSections)
+      .flat()
+      .join(' '),
+    200,
+    900
+  )
+
+  return {
+    companyName,
+    researchSummary,
+    researchSections,
   }
 }
 
 async function fetchTopCompanyResearch(tavilyApiKey: string, topCompanies: unknown[]) {
-  const companies = topCompanies.slice(0, 3).map((company, index) => {
+  const companies = topCompanies.slice(0, 5).map((company, index) => {
     const typed = (company || {}) as Record<string, unknown>
     return {
       companyName: String(typed.name || `Company ${index + 1}`),
@@ -340,15 +407,12 @@ async function fetchTopCompanyResearch(tavilyApiKey: string, topCompanies: unkno
   let timedOut = false
 
   const tasks = companies.map(async (company) => {
-    const summary = await fetchCompanyResearchFromTavily(tavilyApiKey, company.companyName)
-    if (!summary) {
+    const researchItem = await fetchCompanyResearchFromTavily(tavilyApiKey, company.companyName)
+    if (!researchItem.researchSummary) {
       failedCount += 1
       return
     }
-    companyResearch.push({
-      companyName: company.companyName,
-      researchSummary: summary,
-    })
+    companyResearch.push(researchItem)
   })
 
   await Promise.race([
@@ -485,7 +549,7 @@ function buildPromptPayload(
   strict = false
 ) {
   const companies = topCompanies
-    .slice(0, 3)
+    .slice(0, 5)
     .map((company) => sanitizeCompanyForPrompt((company || {}) as Record<string, unknown>))
     .map((company) => {
       if (!strict) return company
@@ -503,10 +567,19 @@ function buildPromptPayload(
     topCompanies: companies,
     analysisResult: sanitizeAnalysisForPrompt(analysisResult),
     companyResearch: companyResearch
-      .slice(0, 3)
+      .slice(0, 5)
       .map((item) => ({
         companyName: safeText(item.companyName, 80),
-        researchSummary: strict ? safeText(item.researchSummary, 220) : safeText(item.researchSummary, 300),
+        researchSummary: strict ? safeText(item.researchSummary, 240) : safeText(item.researchSummary, 360),
+        researchSections: {
+          business: asArray(item.researchSections.business).slice(0, 2).map((entry) => safeText(entry, 180)),
+          products: asArray(item.researchSections.products).slice(0, 2).map((entry) => safeText(entry, 180)),
+          hiring: asArray(item.researchSections.hiring).slice(0, 2).map((entry) => safeText(entry, 180)),
+          news: asArray(item.researchSections.news).slice(0, 2).map((entry) => safeText(entry, 180)),
+          ir: asArray(item.researchSections.ir).slice(0, 2).map((entry) => safeText(entry, 180)),
+          competitors: asArray(item.researchSections.competitors).slice(0, 2).map((entry) => safeText(entry, 180)),
+          reviews: asArray(item.researchSections.reviews).slice(0, 2).map((entry) => safeText(entry, 180)),
+        },
       })),
   }
 }
@@ -548,6 +621,136 @@ function buildCompanyInsight(company: Record<string, unknown>, index: number) {
   }
 }
 
+function truncateText(value: unknown, maxLength = 120) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength)
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+}
+
+function collectResearchBullets(sections: Record<string, string[]>, keys: string[], maxItems: number, fallback: string[]) {
+  const items = uniqueStrings(
+    keys.flatMap((key) => asArray(sections[key] || [])).map((entry) => truncateText(entry, 180))
+  )
+  if (items.length >= maxItems) return items.slice(0, maxItems)
+  return uniqueStrings([...items, ...fallback]).slice(0, maxItems)
+}
+
+function extractKeywordSignals(text: string, maxItems: number) {
+  const keywords = [
+    'AI',
+    '生成AI',
+    'DX',
+    'SaaS',
+    'クラウド',
+    'データ',
+    'コンサルティング',
+    '研究開発',
+    '製造',
+    '医療',
+    '教育',
+    '営業',
+    'プロダクト',
+    '業務改革',
+    'IR',
+    '採用',
+    '口コミ',
+  ]
+
+  return uniqueStrings(keywords.filter((keyword) => text.includes(keyword))).slice(0, maxItems)
+}
+
+function buildResearchBasedFallback(
+  companyName: string,
+  researchSummary: string,
+  researchSections: Record<string, string[]>,
+  baseCompany: Record<string, unknown>,
+  userProfile: Record<string, unknown>
+) {
+  const role = String(userProfile.role || '実務担当')
+  const fitScore = asSafeNumber((baseCompany as Record<string, any>).overallFit ?? (baseCompany as Record<string, any>).matchScore, 75, 40, 99)
+  const researchText = [researchSummary, ...Object.values(researchSections).flat()].join(' ')
+  const businessProductFeatures = collectResearchBullets(
+    researchSections,
+    ['business', 'products', 'news'],
+    2,
+    [
+      truncateText(researchSummary || `${companyName}の公開情報ベースの事業理解を補完しています。`, 180),
+      '公開情報ベースの主要サービスを、選考で使える事業理解に変換してください。',
+    ]
+  )
+  const userConnectionPoints = collectResearchBullets(
+    researchSections,
+    ['hiring', 'business', 'reviews'],
+    2,
+    [
+      `${role}としての課題整理・推進経験を接続しやすい可能性があります。`,
+      '定量成果と関係者調整の経験が接点になります。',
+    ]
+  )
+  const mainProducts = collectResearchBullets(
+    researchSections,
+    ['products', 'business'],
+    2,
+    ['主要サービスを具体名で整理してください。', '関連プロダクトの差分を把握してください。']
+  )
+  const requiredSkills = uniqueStrings([
+    ...extractKeywordSignals(researchText, 4),
+    `${role}としての再現性のある推進力`,
+    '業界文脈を踏まえた説明力',
+  ]).slice(0, 4)
+  const businessModel = truncateText(
+    researchSummary || `${companyName}の収益構造や顧客価値は、公開情報をもとに選考前に確認してください。`,
+    220
+  )
+  const industryTrend = truncateText(
+    collectResearchBullets(researchSections, ['news', 'ir', 'competitors'], 1, ['業界変化を踏まえた競争環境の確認が必要です。'])[0],
+    220
+  )
+  const fitReasons = uniqueStrings([
+    `${companyName}の事業・サービスと、これまでの${role}経験の接点があるためです。`,
+    '公開情報ベースでは、課題特定から実行までの経験を活かしやすい可能性があります。',
+  ]).slice(0, 2)
+  const riskReasons = collectResearchBullets(
+    researchSections,
+    ['hiring', 'reviews', 'competitors'],
+    2,
+    ['業界固有の理解を深める必要があります。', '抽象論ではなく、事業指標に紐づけた提案が求められます。']
+  )
+  const interviewTopics = uniqueStrings([
+    `主要サービスをどう理解し、どこに改善余地を見ていますか。`,
+    `これまでの${role}経験を、どう再現性ある成果として示せますか。`,
+    ...collectResearchBullets(researchSections, ['hiring', 'news'], 1, []),
+  ]).slice(0, 3)
+  const preparationChecklist = uniqueStrings([
+    '会社の主要サービスと業界構造を整理する',
+    '自分の実績を課題・施策・KPI・成果で棚卸しする',
+    ...collectResearchBullets(researchSections, ['hiring', 'ir', 'reviews'], 1, []),
+  ]).slice(0, 3)
+
+  return {
+    companyName,
+    businessProductFeatures,
+    userConnectionPoints,
+    businessModel,
+    mainProducts,
+    industryTrend,
+    requiredSkills,
+    fitReasons,
+    riskReasons,
+    interviewTopics,
+    preparationChecklist,
+    fitScore,
+    expectedRole: `${companyName}向けの${role}ポジション`,
+    recommendationReason: fitReasons,
+    concernPoints: riskReasons,
+    interviewAppealPoints: interviewTopics,
+    preparationActions: preparationChecklist,
+    estimatedOfferProbability: fitScore >= 85 ? '中〜高（目安）' : '中（目安）',
+  }
+}
+
 function buildOpenAICompanyInsight(company: Record<string, unknown>, index: number) {
   const name = String(company.companyName || company.name || `Company ${index + 1}`)
   const reasons = asArray(company.reasons).filter((value): value is string => typeof value === 'string').slice(0, 5)
@@ -575,21 +778,58 @@ function buildMockResponse(
       : ''
 
   const profileSummary = pickProfileSummary(userProfile)
-  const companyStrategyReports = topCompanies.slice(0, 5).map((company, index) => {
+  const companyStrategyReports = topCompanies.slice(0, 3).map((company, index) => {
     const typedCompany = (company || {}) as Record<string, any>
     const companyName = String(typedCompany.name || `Company ${index + 1}`)
     const fitScore = asSafeNumber(typedCompany.overallFit ?? typedCompany.matchScore, 75, 40, 99)
     return {
       companyName,
+      businessProductFeatures: [
+        `${companyName}の公開情報をもとに、事業領域と主要サービスを整理しています。`,
+        '採用で評価されるのは、事業課題を具体的に解決する視点です。',
+      ],
+      userConnectionPoints: [
+        `${profileSummary.role || '現職'}での改善・推進経験を転用しやすい可能性があります。`,
+        '定量成果を伴う課題解決経験が接点になります。',
+      ],
+      businessModel: `${companyName}の事業モデルは、公開情報をもとに選考前に確認してください。`,
+      mainProducts: ['主要サービスを公開情報ベースで整理してください。', '関連プロダクトの差分を把握してください。'],
+      industryTrend: '業界構造と競争環境の変化を確認してください。',
+      requiredSkills: ['事業理解', '課題整理', '推進力'],
+      fitReasons: [
+        `${companyName}の事業と現職経験に接点がある可能性があります。`,
+        '課題解決と成果再現性を示しやすいです。',
+      ],
+      riskReasons: [
+        '業界固有の理解が必要です。',
+        '事業指標に紐づけた説明が求められます。',
+      ],
+      interviewTopics: [
+        '主要サービスの理解と改善余地',
+        'これまでの成果をどう再現性ある形で示すか',
+      ],
+      preparationChecklist: [
+        '主要サービスと業界構造を整理する',
+        '実績を課題・施策・成果で棚卸しする',
+      ],
       fitScore,
       expectedRole: String(profileSummary.role || 'ポジション未設定'),
       recommendationReason: [
         `${companyName}は現在の経験を活かしやすい業務領域がある可能性があります。`,
-        `希望する働き方との整合性を取りやすいと推定されます。`,
+        '事業・プロダクトの課題に対して、改善提案の再現性を示しやすいです。',
       ],
-      concernPoints: [`役割期待値が高く、初期の立ち上がり速度が問われる可能性があります。`],
-      interviewAppealPoints: [`これまでの成果を数値で示し、再現性のある進め方を説明することが有効です。`],
-      preparationActions: [`想定業務に近い実績を3件に絞って、課題・打ち手・成果で整理してください。`],
+      concernPoints: [
+        '役割期待値が高く、初期の立ち上がり速度が問われる可能性があります。',
+        '業界固有の業務理解を前提にした会話が必要です。',
+      ],
+      interviewAppealPoints: [
+        'これまでの成果を数値で示し、再現性のある進め方を説明することが有効です。',
+        '課題特定から実行までの推進手順を具体的に語ると強いです。',
+      ],
+      preparationActions: [
+        '想定業務に近い実績を3件に絞って、課題・打ち手・成果で整理してください。',
+        '企業の主要サービスと業界構造を1枚にまとめておいてください。',
+      ],
       estimatedOfferProbability: fitScore >= 85 ? '中〜高（目安）' : '中（目安）',
     }
   })
@@ -721,127 +961,18 @@ function normalizeCareerScenarios(value: unknown) {
     })
 }
 
-function inferCompanyFocus(companyName: string, researchSummary: string) {
-  const lower = `${companyName} ${researchSummary}`.toLowerCase()
-
-  if (lower.includes('abeja')) {
-    return {
-      focus: 'AI/データ活用',
-      caution: 'AI活用の実装速度と品質担保の両立が求められる可能性があります。',
-      appeal: 'AI/データ施策を事業KPIへ接続した実績を具体的に示すことが有効です。',
-      prep: 'データ活用プロジェクトの成果を、課題・打ち手・効果で1枚に整理してください。',
-    }
-  }
-
-  if (lower.includes('microsoft')) {
-    return {
-      focus: 'クラウド/AI/エンタープライズ',
-      caution: '大規模顧客を前提とした合意形成と提案品質の水準が高い可能性があります。',
-      appeal: 'クラウド導入やAI活用を、業務変革や売上貢献に結び付けた説明が有効です。',
-      prep: 'AzureやCopilot関連の活用事例を、顧客課題との対応関係で準備してください。',
-    }
-  }
-
-  if (lower.includes('ibm')) {
-    return {
-      focus: 'ハイブリッドクラウド/AI/コンサル',
-      caution: '技術理解に加えて、業界文脈を踏まえた提案力が求められる可能性があります。',
-      appeal: '複数部門を巻き込んだ変革推進の経験を、意思決定プロセスとともに示すと有効です。',
-      prep: 'ハイブリッドクラウドやAI活用の導入効果を、定量指標で説明できるようにしてください。',
-    }
-  }
-
-  if (lower.includes('dirbato')) {
-    return {
-      focus: 'ITコンサル/DX支援',
-      caution: '短期間での成果創出とクライアント折衝の両立が求められる可能性があります。',
-      appeal: 'DXプロジェクトでの課題整理から実行までの推進経験を示すと有効です。',
-      prep: '業務改革・システム導入の実績を、再現可能な進め方として整理してください。',
-    }
-  }
-
-  if (lower.includes('preferred networks') || lower.includes('preferred') || lower.includes('pfn')) {
-    return {
-      focus: '深層学習/AI研究開発',
-      caution: '技術検証の深さと実装スピードの両立が求められる可能性があります。',
-      appeal: '研究成果をプロダクト価値へ転換した経験を示すと有効です。',
-      prep: 'モデル改善の検証設計と効果指標を、再現可能な形で整理してください。',
-    }
-  }
-
-  if (lower.includes('hacarus')) {
-    return {
-      focus: '少量データAI/医療・製造向けAI',
-      caution: 'データ制約下での精度担保と業務適用の説明力が求められる可能性があります。',
-      appeal: '限られたデータで成果を出した検証プロセスを示すと有効です。',
-      prep: '医療・製造領域のユースケースを、課題と導入効果で整理してください。',
-    }
-  }
-
-  if (lower.includes('layerx')) {
-    return {
-      focus: 'SaaS/バックオフィスDX/AI SaaS',
-      caution: '高速なプロダクト改善サイクルへの適応が求められる可能性があります。',
-      appeal: '業務課題をSaaS機能改善へ落とし込んだ経験を示すと有効です。',
-      prep: '経理・バックオフィス領域の改善事例をKPI付きで整理してください。',
-    }
-  }
-
-  if (lower.includes('ベイカレント') || lower.includes('baycurrent')) {
-    return {
-      focus: '戦略/業務改革/ITコンサル',
-      caution: '上流案件での論点整理と推進責任が高い可能性があります。',
-      appeal: '経営課題を実行計画に落とした経験を示すと有効です。',
-      prep: '上流案件の成果を、論点・施策・成果で構造化して準備してください。',
-    }
-  }
-
-  if (lower.includes('アクセンチュア') || lower.includes('accenture')) {
-    return {
-      focus: 'DX/Technology Strategy/大規模変革',
-      caution: '複雑なステークホルダー調整と高い実行品質が求められる可能性があります。',
-      appeal: '大規模変革案件での推進経験を、成果指標とともに示すと有効です。',
-      prep: '技術戦略と実行計画の接続を示す事例を、役割別に整理してください。',
-    }
-  }
-
-  if (lower.includes('リクルート') || lower.includes('recruit')) {
-    return {
-      focus: '事業企画/プロダクト改善/KPI改善',
-      caution: '高速な仮説検証サイクルでの意思決定速度が求められる可能性があります。',
-      appeal: 'KPI改善に直結した企画・実行経験を示すと有効です。',
-      prep: 'プロダクト改善の打ち手とKPI変化を、時系列で整理してください。',
-    }
-  }
-
-  if (lower.includes('クラウド')) {
-    return {
-      focus: 'クラウド活用',
-      caution: '変化の速い技術領域への継続的なキャッチアップが必要な可能性があります。',
-      appeal: 'クラウド基盤の改善を事業成果に変換した経験を示すと有効です。',
-      prep: 'クラウド関連の改善施策を、効果指標つきで整理してください。',
-    }
-  }
-
-  if (lower.includes('コンサル') || lower.includes('dx')) {
-    return {
-      focus: 'DX推進/コンサルティング',
-      caution: '複数ステークホルダーとの調整負荷が高い可能性があります。',
-      appeal: '課題特定から実行までの推進力を、具体事例で示すと有効です。',
-      prep: '提案資料を、課題・打ち手・効果の構造でテンプレート化してください。',
-    }
-  }
-
-  return {
-    focus: '事業成長に直結する業務推進',
-    caution: '立ち上がり初期に期待値調整と優先順位付けが重要になる可能性があります。',
-    appeal: '成果創出までのプロセスを定量で示すことが有効です。',
-    prep: '実績3件を課題・打ち手・成果で整理し、再現性を説明できるようにしてください。',
-  }
-}
-
 function isLowQualityCompanyReport(report: Record<string, unknown>) {
   const expectedRole = String(report.expectedRole || '').trim()
+  const businessProductFeatures = asStringArray(report.businessProductFeatures, 5)
+  const userConnectionPoints = asStringArray(report.userConnectionPoints, 5)
+  const businessModel = String(report.businessModel || '').trim()
+  const mainProducts = asStringArray(report.mainProducts, 5)
+  const industryTrend = String(report.industryTrend || '').trim()
+  const requiredSkills = asStringArray(report.requiredSkills, 5)
+  const fitReasons = asStringArray(report.fitReasons, 5)
+  const riskReasons = asStringArray(report.riskReasons, 5)
+  const interviewTopics = asStringArray(report.interviewTopics, 5)
+  const preparationChecklist = asStringArray(report.preparationChecklist, 5)
   const recommendationReason = asStringArray(report.recommendationReason, 5)
   const concernPoints = asStringArray(report.concernPoints, 5)
   const interviewAppealPoints = asStringArray(report.interviewAppealPoints, 5)
@@ -849,7 +980,24 @@ function isLowQualityCompanyReport(report: Record<string, unknown>) {
   const estimatedOfferProbability = String(report.estimatedOfferProbability || '').trim()
 
   if (!expectedRole || !estimatedOfferProbability) return true
-  if (recommendationReason.length === 0 || concernPoints.length === 0 || interviewAppealPoints.length === 0 || preparationActions.length === 0) return true
+  if (
+    businessProductFeatures.length < 2 ||
+    userConnectionPoints.length < 2 ||
+    !businessModel ||
+    mainProducts.length < 2 ||
+    !industryTrend ||
+    requiredSkills.length < 2 ||
+    fitReasons.length < 2 ||
+    riskReasons.length < 2 ||
+    interviewTopics.length < 2 ||
+    preparationChecklist.length < 2 ||
+    recommendationReason.length < 2 ||
+    concernPoints.length < 2 ||
+    interviewAppealPoints.length < 2 ||
+    preparationActions.length < 2
+  ) {
+    return true
+  }
 
   const genericPatterns = [
     '現在の経験を活かしやすい',
@@ -858,11 +1006,27 @@ function isLowQualityCompanyReport(report: Record<string, unknown>) {
     '面接では成果を数値で示す',
     'star形式で準備する',
   ]
-  const combined = [expectedRole, ...recommendationReason, ...concernPoints, ...interviewAppealPoints, ...preparationActions].join(' ')
+  const combined = [
+    expectedRole,
+    businessModel,
+    industryTrend,
+    ...businessProductFeatures,
+    ...userConnectionPoints,
+    ...mainProducts,
+    ...requiredSkills,
+    ...fitReasons,
+    ...riskReasons,
+    ...interviewTopics,
+    ...preparationChecklist,
+    ...recommendationReason,
+    ...concernPoints,
+    ...interviewAppealPoints,
+    ...preparationActions,
+  ].join(' ')
   const normalized = combined.toLowerCase()
   const hasOnlyGeneric = genericPatterns.some((pattern) => combined.includes(pattern))
   const hasCompanySpecificSignal =
-    /ai|dx|データ|生成ai|azure|copilot|エンタープライズ|深層学習|医療|製造|クラウド|saas|コンサル|業務改革|kpi|バックオフィス/.test(normalized)
+    /ai|dx|データ|生成ai|azure|copilot|エンタープライズ|深層学習|医療|製造|クラウド|saas|コンサル|業務改革|kpi|バックオフィス|教育|edtech|学校|生徒|保護者|学習塾|出版|学校ict/.test(normalized)
 
   return hasOnlyGeneric && !hasCompanySpecificSignal
 }
@@ -870,28 +1034,24 @@ function isLowQualityCompanyReport(report: Record<string, unknown>) {
 function buildCompanySpecificFallback(
   companyName: string,
   researchSummary: string,
+  researchSections: Record<string, string[]>,
   baseCompany: Record<string, unknown>,
   userProfile: Record<string, unknown>
 ) {
-  const focus = inferCompanyFocus(companyName, researchSummary)
-  const role = String(userProfile.role || '')
-  const expectedRole = role ? `${role}（${focus.focus}領域）` : `${focus.focus}に関わる推進ポジション`
-  const fitScore = asSafeNumber((baseCompany as Record<string, any>).overallFit ?? (baseCompany as Record<string, any>).matchScore, 75, 40, 99)
-  return {
-    companyName,
-    fitScore,
-    expectedRole,
-    recommendationReason: [
-      `公開情報ベースでは、${companyName}は${focus.focus}を重視しており、経験を事業課題解決へ転換できる可能性があります。`,
-    ],
-    concernPoints: [focus.caution],
-    interviewAppealPoints: [focus.appeal],
-    preparationActions: [focus.prep],
-    estimatedOfferProbability: fitScore >= 85 ? '中〜高（目安）' : '中（目安）',
-  }
+  return buildResearchBasedFallback(companyName, researchSummary, researchSections, baseCompany, userProfile)
 }
 
 function enrichCompanyStrategyReport(openAIReport: Record<string, unknown>, fallbackReport: Record<string, unknown>) {
+  const businessProductFeatures = asStringArray(openAIReport.businessProductFeatures, 4)
+  const userConnectionPoints = asStringArray(openAIReport.userConnectionPoints, 4)
+  const businessModel = String(openAIReport.businessModel || '').trim()
+  const mainProducts = asStringArray(openAIReport.mainProducts, 4)
+  const industryTrend = String(openAIReport.industryTrend || '').trim()
+  const requiredSkills = asStringArray(openAIReport.requiredSkills, 4)
+  const fitReasons = asStringArray(openAIReport.fitReasons, 4)
+  const riskReasons = asStringArray(openAIReport.riskReasons, 4)
+  const interviewTopics = asStringArray(openAIReport.interviewTopics, 4)
+  const preparationChecklist = asStringArray(openAIReport.preparationChecklist, 4)
   const recommendationReason = asStringArray(openAIReport.recommendationReason, 4)
   const concernPoints = asStringArray(openAIReport.concernPoints, 4)
   const interviewAppealPoints = asStringArray(openAIReport.interviewAppealPoints, 4)
@@ -902,6 +1062,17 @@ function enrichCompanyStrategyReport(openAIReport: Record<string, unknown>, fall
   return {
     ...fallbackReport,
     companyName: String(openAIReport.companyName || fallbackReport.companyName || ''),
+    businessProductFeatures: businessProductFeatures.length > 0 ? businessProductFeatures : asStringArray(fallbackReport.businessProductFeatures, 4),
+    userConnectionPoints: userConnectionPoints.length > 0 ? userConnectionPoints : asStringArray(fallbackReport.userConnectionPoints, 4),
+    businessModel: businessModel || String(fallbackReport.businessModel || ''),
+    mainProducts: mainProducts.length > 0 ? mainProducts : asStringArray(fallbackReport.mainProducts, 4),
+    industryTrend: industryTrend || String(fallbackReport.industryTrend || ''),
+    requiredSkills: requiredSkills.length > 0 ? requiredSkills : asStringArray(fallbackReport.requiredSkills, 4),
+    fitReasons: fitReasons.length > 0 ? fitReasons : asStringArray(fallbackReport.fitReasons, 4),
+    riskReasons: riskReasons.length > 0 ? riskReasons : asStringArray(fallbackReport.riskReasons, 4),
+    interviewTopics: interviewTopics.length > 0 ? interviewTopics : asStringArray(fallbackReport.interviewTopics, 4),
+    preparationChecklist:
+      preparationChecklist.length > 0 ? preparationChecklist : asStringArray(fallbackReport.preparationChecklist, 4),
     fitScore: asSafeNumber(openAIReport.fitScore, asSafeNumber(fallbackReport.fitScore, 75, 40, 99), 40, 99),
     expectedRole: expectedRole || String(fallbackReport.expectedRole || ''),
     recommendationReason: recommendationReason.length > 0 ? recommendationReason : asStringArray(fallbackReport.recommendationReason, 4),
@@ -925,14 +1096,26 @@ function normalizeCompanyStrategyReports(
       .map((item) => [String((item as Record<string, unknown>).companyName || ''), item as Record<string, unknown>])
   )
 
-  const researchByName = new Map(companyResearch.map((item) => [item.companyName, item.researchSummary]))
+  const researchByName = new Map(companyResearch.map((item) => [item.companyName, item]))
 
   return topCompanies.slice(0, 3).map((company, index) => {
     const base = (company || {}) as Record<string, any>
     const name = String(base.name || `Company ${index + 1}`)
     const source = byName.get(name) || {}
-    const researchSummary = String(researchByName.get(name) || '')
-    const fallbackReport = buildCompanySpecificFallback(name, researchSummary, base, userProfile)
+    const researchItem = researchByName.get(name) || {
+      companyName: name,
+      researchSummary: '',
+      researchSections: {
+        business: [],
+        products: [],
+        hiring: [],
+        news: [],
+        ir: [],
+        competitors: [],
+        reviews: [],
+      },
+    }
+    const fallbackReport = buildCompanySpecificFallback(name, researchItem.researchSummary, researchItem.researchSections, base, userProfile)
     const enrichedReport = enrichCompanyStrategyReport(source, fallbackReport)
     if (useFallbackDefaults && isLowQualityCompanyReport(enrichedReport)) {
       return fallbackReport
@@ -1063,8 +1246,9 @@ async function generateWithOpenAI(
   companyResearch: CompanyResearchItem[],
   researchMeta: CompanyResearchMeta
 ): Promise<CareerInsightsResponse | null> {
-  const targetCompanies = topCompanies.slice(0, 3)
-  let promptPayload: any = buildPromptPayload(userProfile, targetCompanies, analysisResult, companyResearch)
+  const promptCompanies = topCompanies.slice(0, 5)
+  const reportCompanies = topCompanies.slice(0, 3)
+  let promptPayload: any = buildPromptPayload(userProfile, promptCompanies, analysisResult, companyResearch)
 
   const systemPrompt = [
     'あなたは転職意思決定を支援するシニアキャリアコンサルタントです。',
@@ -1074,11 +1258,20 @@ async function generateWithOpenAI(
     '必須キーは空にせず、最低1件の内容を入れてください。',
     '回答は日本語。簡潔かつ具体的に。',
     '最優先は companyStrategyReports の企業別具体化です。',
-    'companyResearch を根拠に、企業ごとに推薦理由・懸念点・面接訴求ポイント・準備アクションを差別化してください。',
-    'companyStrategyReports は必須です。各企業について expectedRole, recommendationReason, concernPoints, interviewAppealPoints, preparationActions を必ず返してください。',
-    'companyStrategyReports の各配列は最低1件返してください。空配列は禁止です。',
+    'companyResearch には事業内容、主要サービス、採用ページ、ニュース、IR、競合、口コミの要約が入っています。必ず参照し、企業ごとに内容を変えてください。',
+    '企業名だけでなく、事業モデル、主要プロダクト、競争環境、採用で評価されるスキルを踏まえて、未知の企業でも同品質で分析してください。',
+    'companyStrategyReports は companyResearch を根拠に毎回生成し、固定辞書や会社別テンプレートに依存しないでください。',
+    '各 companyStrategyReports には businessProductFeatures, userConnectionPoints, businessModel, mainProducts, industryTrend, requiredSkills, fitReasons, riskReasons, interviewTopics, preparationChecklist を含めてください。',
+    'companyStrategyReports は必須です。各企業について expectedRole, fitReasons, riskReasons, interviewTopics, preparationChecklist を必ず返してください。',
+    'companyStrategyReports の各配列は最低2件返してください。空配列は禁止です。',
     'expectedRole は空文字禁止です。各企業ごとに具体的な役割名を返してください。',
-    'recommendationReason, concernPoints, interviewAppealPoints, preparationActions は各1件以上、抽象表現禁止、企業固有表現で記述してください。',
+    'fitReasons, riskReasons, interviewTopics, preparationChecklist は各2件以上、抽象表現禁止、企業固有表現で記述してください。',
+    'businessModel は事業の収益構造や顧客価値の説明を1文でまとめてください。',
+    'mainProducts は主要サービスやプロダクトを具体名で2件以上返してください。',
+    'industryTrend は業界構造や直近の変化を踏まえた1文で返してください。',
+    'requiredSkills は採用で評価される能力を2件以上返してください。',
+    'interviewTopics は面接で深掘りすべき論点を2件以上返してください。',
+    'preparationChecklist は選考前に準備する項目を2件以上返してください。',
     '抽象表現は禁止です。companyResearch の事実にもとづく企業固有の表現で記述してください。',
     'careerScenarios は最大1件、requiredActions は最大2件にしてください。',
     'careerRoadmap は各期間最大1件で短く記述してください。',
@@ -1090,7 +1283,7 @@ async function generateWithOpenAI(
   let userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
   const fixedPromptLength = systemPrompt.length + userPrompt.length
   if (fixedPromptLength > MAX_PROMPT_CHARS) {
-    promptPayload = buildPromptPayload(userProfile, targetCompanies, analysisResult, companyResearch, true)
+    promptPayload = buildPromptPayload(userProfile, promptCompanies, analysisResult, companyResearch, true)
     userPrompt = `入力データ: ${JSON.stringify(promptPayload)}`
   }
 
@@ -1248,7 +1441,7 @@ async function generateWithOpenAI(
   const marketValueRaw = normalizeMarketValue(parsedObject.marketValue, analysisResult)
   const careerScenarios = normalizeCareerScenarios(parsedObject.careerScenarios)
   const hasOpenAICompanyStrategyReports = Array.isArray(parsedObject.companyStrategyReports) && asArray(parsedObject.companyStrategyReports).length > 0
-  const companyStrategyReportsRaw = normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, targetCompanies, companyResearch, userProfile, true)
+  const companyStrategyReportsRaw = normalizeCompanyStrategyReports(parsedObject.companyStrategyReports, reportCompanies, companyResearch, userProfile, true)
   const careerRoadmap = normalizeCareerRoadmap(parsedObject.careerRoadmap)
 
   if (
@@ -1302,7 +1495,7 @@ async function generateWithOpenAI(
     userProfileSummary: pickProfileSummary(userProfile),
     analysisSnapshot: {
       score: analysisResult.score || analysisResult.rawScore || '未設定',
-      recommendedCompanies: targetCompanies.length,
+      recommendedCompanies: reportCompanies.length,
     },
   }
 }
