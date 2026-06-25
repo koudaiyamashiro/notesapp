@@ -7,6 +7,8 @@ import FlowSection from '../components/FlowSection.jsx'
 import PricingSection from '../components/PricingSection.jsx'
 import Footer from '../components/Footer.jsx'
 import CTASection from '../components/CTASection.jsx'
+import ResultPreviewSection from '../components/ResultPreviewSection.jsx'
+import FAQSection from '../components/FAQSection.jsx'
 
 export default function Home() {
   return (
@@ -16,9 +18,11 @@ export default function Home() {
         <Hero />
         <ProblemSection />
         <FeatureSection />
+        <ResultPreviewSection />
         <ComparisonSection />
         <FlowSection />
         <PricingSection />
+        <FAQSection />
         <CTASection />
       </main>
       <Footer />

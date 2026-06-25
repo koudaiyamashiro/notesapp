@@ -2,22 +2,22 @@ const FEATURES = [
   {
     title: '市場価値スコア',
     description: 'スキル・経験・市場ニーズをスコア化し、あなたの価値を可視化します。',
-    icon: '📊',
+    key: 'A1',
   },
   {
     title: '向いている業界・職種診断',
     description: 'AIがあなたに合う業界と職種をランク付けして提案します。',
-    icon: '🔍',
+    key: 'A2',
   },
   {
     title: '企業比較レポート',
     description: '年収・成長環境・カルチャーを横並びで比較。',
-    icon: '🏢',
+    key: 'A3',
   },
   {
     title: 'キャリアロードマップ',
     description: '1年後・3年後・5年後の意思決定に役立つ道筋を描きます。',
-    icon: '🛣️',
+    key: 'A4',
   },
 ]
 
@@ -38,8 +38,8 @@ export default function FeatureSection() {
         <div className="mt-12 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
           {FEATURES.map((feature) => (
             <article key={feature.title} className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.06)]">
-              <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-sky-100 text-2xl">
-                {feature.icon}
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EAF6FF] text-sm font-semibold text-sky-700">
+                {feature.key}
               </div>
               <h3 className="mt-6 text-lg font-semibold text-slate-950">{feature.title}</h3>
               <p className="mt-3 text-sm leading-7 text-slate-600">{feature.description}</p>

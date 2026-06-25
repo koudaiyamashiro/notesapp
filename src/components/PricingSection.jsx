@@ -25,14 +25,14 @@ const pricingPlans = [
 
 export default function PricingSection() {
   return (
-    <section id="pricing" className="bg-slate-950 py-24 text-slate-100">
+    <section id="pricing" className="bg-[#F5F7FA] py-24 text-slate-900">
       <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-10">
         <div className="max-w-3xl">
-          <p className="text-sm uppercase tracking-[0.28em] text-sky-400">Pricing</p>
+          <p className="text-sm uppercase tracking-[0.28em] text-sky-600">Pricing</p>
           <h2 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">
             転職前に、戦略をつくるサブスク。
           </h2>
-          <p className="mt-5 text-lg leading-8 text-slate-300">
+          <p className="mt-5 text-lg leading-8 text-slate-600">
             まずは無料で現状を把握し、必要に応じて機能をアップグレードしていくモデルです。
           </p>
         </div>

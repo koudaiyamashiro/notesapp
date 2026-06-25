@@ -18,28 +18,28 @@ function FeatureMark({ value, highlight }) {
 
 export default function ComparisonSection() {
   return (
-    <section id="compare" className="bg-slate-950 py-24 text-slate-100">
+    <section id="compare" className="bg-white py-24 text-slate-900">
       <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-10">
         <div className="max-w-3xl">
-          <p className="text-sm uppercase tracking-[0.28em] text-sky-400">Why us</p>
+          <p className="text-sm uppercase tracking-[0.28em] text-sky-600">Why us</p>
           <h2 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">
             なぜCareer Strategist AIなのか
           </h2>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
             一般的な転職サービスが「求人を届ける」のに対し、Career Strategist AIは「キャリア戦略を設計する」。
           </p>
         </div>
 
-        <div className="mt-14 overflow-hidden rounded-[2rem] border border-slate-800 bg-slate-900 shadow-[0_30px_90px_rgba(15,23,42,0.35)]">
-          <div className="grid grid-cols-[1.6fr_1fr_1fr] gap-0 bg-slate-950 px-6 py-5 text-sm uppercase tracking-[0.24em] text-slate-200">
+        <div className="mt-14 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
+          <div className="grid grid-cols-[1.6fr_1fr_1fr] gap-0 bg-[#F8FAFC] px-6 py-5 text-sm uppercase tracking-[0.24em] text-slate-600">
             <span className="font-semibold">項目</span>
             <span className="font-semibold text-right">一般的な転職サイト</span>
             <span className="font-semibold text-right">Career Strategist AI</span>
           </div>
-          <div className="divide-y divide-slate-800 px-6 py-6 text-sm text-slate-300">
+          <div className="divide-y divide-slate-200 px-6 py-6 text-sm text-slate-600">
             {COMPARISONS.map((row, index) => (
-              <div key={row.label} className={`grid grid-cols-[1.6fr_1fr_1fr] items-center gap-4 py-5 ${index % 2 === 0 ? 'bg-slate-950/50' : ''}`}>
-                <span className="text-slate-100">{row.label}</span>
+              <div key={row.label} className={`grid grid-cols-[1.6fr_1fr_1fr] items-center gap-4 py-5 ${index % 2 === 0 ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
+                <span className="text-slate-900">{row.label}</span>
                 <div className="flex justify-end">
                   <FeatureMark value={row.general} highlight={false} />
                 </div>

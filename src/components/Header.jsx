@@ -10,10 +10,13 @@ export default function Header() {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
+          <a href="#home" className="text-sm font-medium text-slate-600 transition hover:text-slate-950">Home</a>
           <a href="#problem" className="text-sm font-medium text-slate-600 transition hover:text-slate-950">課題</a>
           <a href="#feature" className="text-sm font-medium text-slate-600 transition hover:text-slate-950">機能</a>
+          <a href="#result-preview" className="text-sm font-medium text-slate-600 transition hover:text-slate-950">診断結果</a>
           <a href="#compare" className="text-sm font-medium text-slate-600 transition hover:text-slate-950">比較</a>
           <a href="#pricing" className="text-sm font-medium text-slate-600 transition hover:text-slate-950">料金</a>
+          <a href="#faq" className="text-sm font-medium text-slate-600 transition hover:text-slate-950">FAQ</a>
         </nav>
 
         <div className="flex items-center gap-3">
