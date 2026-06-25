@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
+import CompanyModal from '../components/CompanyModal.jsx'
 import { generateCompanyInsights } from '../services/aiAnalysisService.js'
 import { analyzeCareerProfile } from '../services/careerAnalysisService.js'
 import ResultSidebarNav from '../components/result/ResultSidebarNav.jsx'
@@ -11,6 +12,7 @@ import CompanyRecommendationSection from '../components/result/CompanyRecommenda
 import CompanyComparisonTable from '../components/result/CompanyComparisonTable.jsx'
 import RoadmapTimelineSection from '../components/result/RoadmapTimelineSection.jsx'
 import DecisionPanels from '../components/result/DecisionPanels.jsx'
+import DetailedDiagnosisModal from '../components/result/DetailedDiagnosisModal.jsx'
 
 const DEFAULT_FORM = {
   age: '32',
@@ -121,6 +123,9 @@ export default function Result() {
   const [aiInsights, setAiInsights] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [activeSectionId, setActiveSectionId] = useState('overview')
+  const [openCompany, setOpenCompany] = useState(null)
+  const [openDetailedDiagnosis, setOpenDetailedDiagnosis] = useState(false)
 
   useEffect(() => {
     if (!hasDiagnosisData) {
@@ -279,26 +284,97 @@ export default function Result() {
     { title: '市場リスク', detail: warnings[2] || '市況変化により採用ポジションの難易度が変動するため、応募タイミングの見極めが重要です。' },
   ]
 
-  const nextActionTexts = (aiInsights?.nextActions || result.actions || []).slice(0, 5)
-  const actionTitles = ['履歴書作成', '職務経歴書改善', '面接対策', '企業研究', 'AI相談']
+  const nextActionTexts = (aiInsights?.nextActions || result.actions || []).slice(0, 6)
+  const actionTitles = ['履歴書作成', '職務経歴書改善', '面接対策', '企業研究', 'AI相談', 'さらに詳細診断を行う']
   const actions = actionTitles.map((title, idx) => ({
     title,
     time: idx < 2 ? '60分' : idx < 4 ? '45分' : '30分',
-    detail: nextActionTexts[idx] || '転職成功確率を上げるための実行アクションを具体化してください。',
-    cta: idx === 4 ? 'AIに相談する' : '着手する',
+    detail:
+      idx === 5
+        ? '追加の経験・成果・志向性を入力することで、より精密な市場価値スコア、企業推薦、キャリアロードマップを生成できます。'
+        : nextActionTexts[idx] || '転職成功確率を上げるための実行アクションを具体化してください。',
+    cta: idx === 5 ? '近日提供' : idx === 4 ? 'AIに相談する' : '着手する',
+    comingSoon: idx === 5,
   }))
 
-  const navSections = [
-    { id: 'overview', label: 'サマリー' },
-    { id: 'strength', label: '強み・弱み分析' },
-    { id: 'rankings', label: '業界・職種ランキング' },
-    { id: 'companies', label: 'おすすめ企業' },
-    { id: 'compare', label: '企業比較' },
-    { id: 'roadmap', label: 'ロードマップ' },
-    { id: 'ai-summary', label: 'AI総評' },
-    { id: 'risk', label: 'リスク分析' },
-    { id: 'actions', label: '次のアクション' },
-  ]
+  const aiStrategySummary = useMemo(() => {
+    const topIndustry = result.industries?.[0]?.label || '-'
+    const topRole = result.roles?.[0]?.role || '-'
+    const topCompany = recommendedCompanies?.[0]?.name || '-'
+    return {
+      summary: aiSummary,
+      marketAndStrengths: [
+        `市場価値スコアは ${marketMetrics.score} / 100（偏差値 ${marketMetrics.deviation}）です。`,
+        positives[0] || '強みの再現性が高く、企業との接点を作りやすい状態です。',
+        positives[1] || '経験領域と市場需要の重なりが大きく、短期で成果を示しやすいです。',
+      ],
+      fitSummary: [
+        `向いている業界は「${topIndustry}」、向いている職種は「${topRole}」が最上位です。`,
+        '応募戦略は上位2-3業界・職種に絞ると選考密度と準備品質を両立できます。',
+      ],
+      companyConnections: [
+        `おすすめ企業1位は「${topCompany}」。強みとキャリア志向の接点が最も大きい候補です。`,
+        '企業比較では年収/成長性/働き方を同じ軸で比較すると意思決定の精度が上がります。',
+      ],
+      cautions: warnings.slice(0, 3),
+      nextStrategies: [
+        actions[0]?.detail || '職務経歴書の訴求軸を先に統一する。',
+        actions[1]?.detail || '面接で伝える成果を定量化する。',
+        actions[5]?.detail || '追加診断で精度を上げる。',
+      ],
+    }
+  }, [actions, aiSummary, marketMetrics.deviation, marketMetrics.score, positives, recommendedCompanies, result.industries, result.roles, warnings])
+
+  const navSections = useMemo(
+    () => [
+      { id: 'overview', label: 'サマリー' },
+      { id: 'strength', label: '強み・弱み分析' },
+      { id: 'rankings', label: '業界・職種ランキング' },
+      { id: 'companies', label: 'おすすめ企業' },
+      { id: 'compare', label: '企業比較' },
+      { id: 'roadmap', label: 'ロードマップ' },
+      { id: 'ai-summary', label: 'AI総評' },
+      { id: 'risk', label: 'リスク分析' },
+      { id: 'actions', label: '次のアクション' },
+    ],
+    []
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const ids = navSections.map((item) => item.id)
+    const elements = ids
+      .map((id) => document.getElementById(id))
+      .filter(Boolean)
+
+    if (elements.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+        if (visible[0]?.target?.id) {
+          setActiveSectionId(visible[0].target.id)
+        }
+      },
+      {
+        root: null,
+        rootMargin: '-30% 0px -55% 0px',
+        threshold: [0.15, 0.25, 0.4],
+      }
+    )
+
+    elements.forEach((element) => observer.observe(element))
+    return () => observer.disconnect()
+  }, [navSections])
+
+  const jumpSection = (id) => {
+    const target = document.getElementById(id)
+    if (!target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setActiveSectionId(id)
+  }
 
   if (!hasDiagnosisData) {
     return (
@@ -334,28 +410,32 @@ export default function Result() {
         <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
           <ResultSidebarNav
             sections={navSections}
+            activeSectionId={activeSectionId}
+            onJumpSection={jumpSection}
             summary={{
-              score: `${marketMetrics.score} / 100`,
+              aiSummaryShort: aiSummary,
               topIndustry: result.industries?.[0]?.label || '-',
               topRole: result.roles?.[0]?.role || '-',
               topCompany: recommendedCompanies?.[0]?.name || '-',
+              successRate: `${successRates?.[0]?.value || '-'}%`,
+              topAction: actions?.[0]?.title || '-',
             }}
           />
 
           <div className="space-y-5">
             <MarketValueHero marketMetrics={marketMetrics} salarySeries={salarySeries} successRates={successRates} />
-            <StrengthRadarPanel data={radarData} />
+            <StrengthRadarPanel data={radarData} onOpenDetailed={() => setOpenDetailedDiagnosis(true)} />
             <RankingPanels
               industries={result.industries || []}
               roles={result.roles || []}
               industryReasons={industryReasons}
               roleReasons={roleReasons}
             />
-            <CompanyRecommendationSection companies={recommendedCompanies} />
+            <CompanyRecommendationSection companies={recommendedCompanies} onOpenCompany={(company) => setOpenCompany(company)} />
             <CompanyComparisonTable companies={recommendedCompanies} />
             <RoadmapTimelineSection roadmapItems={roadmapItems} />
             <DecisionPanels
-              aiSummary={aiSummary}
+              aiSummary={aiStrategySummary}
               positives={positives.length > 0 ? positives : ['強みが明確で、候補企業との一致率が高いです。']}
               warnings={warnings}
               risks={risks}
@@ -363,6 +443,9 @@ export default function Result() {
             />
           </div>
         </div>
+
+        <CompanyModal open={Boolean(openCompany)} onClose={() => setOpenCompany(null)} company={openCompany} />
+        <DetailedDiagnosisModal open={openDetailedDiagnosis} onClose={() => setOpenDetailedDiagnosis(false)} />
       </main>
     </div>
   )

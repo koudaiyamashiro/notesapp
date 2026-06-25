@@ -6,10 +6,12 @@ import {
   PolarRadiusAxis,
   ResponsiveContainer,
 } from 'recharts'
+import { ArrowUpRight } from 'lucide-react'
 import SectionCard from './SectionCard.jsx'
 
-export default function StrengthRadarPanel({ data }) {
-  const diffRows = [...data]
+export default function StrengthRadarPanel({ data = [], onOpenDetailed }) {
+  const safeData = Array.isArray(data) ? data : []
+  const diffRows = [...safeData]
     .map((item) => ({ ...item, diff: item.you - item.avg }))
     .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
 
@@ -18,18 +20,32 @@ export default function StrengthRadarPanel({ data }) {
       id="strength"
       title="強み・弱み分析"
       subtitle="8軸レーダーであなたと同年代平均を比較。差分を見れば、面接で推すべき軸がすぐに分かります。"
+      right={(
+        <button
+          type="button"
+          onClick={onOpenDetailed}
+          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          詳細を見る
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </button>
+      )}
     >
       <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="h-[320px] rounded-xl border border-slate-200 bg-[#F8FAFC] p-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="78%" data={data}>
-              <PolarGrid stroke="#cbd5e1" />
-              <PolarAngleAxis dataKey="axis" tick={{ fill: '#475569', fontSize: 11 }} />
-              <PolarRadiusAxis domain={[0, 100]} tick={false} />
-              <Radar dataKey="you" stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.32} />
-              <Radar dataKey="avg" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.26} />
-            </RadarChart>
-          </ResponsiveContainer>
+          {safeData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart cx="50%" cy="50%" outerRadius="78%" data={safeData}>
+                <PolarGrid stroke="#cbd5e1" />
+                <PolarAngleAxis dataKey="axis" tick={{ fill: '#475569', fontSize: 11 }} />
+                <PolarRadiusAxis domain={[0, 100]} tick={false} />
+                <Radar dataKey="you" stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.32} />
+                <Radar dataKey="avg" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.26} />
+              </RadarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-500">分析データがありません</div>
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-[#F8FAFC] p-4">
