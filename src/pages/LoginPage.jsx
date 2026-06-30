@@ -6,11 +6,19 @@ import { useAuth } from '../auth/AuthProvider.jsx'
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { signInWithEmail, isAuthenticated, loading, isAmplifyReady, configError } = useAuth()
+  const { signInWithEmail, confirmNewPassword, isAuthenticated, loading, isAmplifyReady, configError } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [requiresNewPassword, setRequiresNewPassword] = useState(false)
+
+  const isNewPasswordChallenge = (result) => {
+    const step = result?.nextStep?.signInStep || ''
+    return step === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' || step.includes('NEW_PASSWORD_REQUIRED')
+  }
 
   const redirectTo = useMemo(() => {
     const from = location.state?.from
@@ -25,16 +33,53 @@ export default function LoginPage() {
     event.preventDefault()
     setError('')
     setSubmitting(true)
+    setRequiresNewPassword(false)
 
     try {
       const result = await signInWithEmail(email.trim(), password)
+      if (isNewPasswordChallenge(result)) {
+        setRequiresNewPassword(true)
+        setError('初回ログインのため、新しいパスワードを設定してください。')
+        return
+      }
+
       if (!result?.isSignedIn) {
-        setError('このアカウントは追加認証が必要です。管理者設定を確認してください。')
+        const nextStep = result?.nextStep?.signInStep || 'UNKNOWN'
+        setError(`追加認証が必要です。認証ステップ: ${nextStep}`)
         return
       }
       navigate(redirectTo, { replace: true })
     } catch {
       setError('ログインに失敗しました。メールアドレスまたはパスワードを確認してください。')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleNewPasswordSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+
+    if (newPassword.length < 8) {
+      setError('新しいパスワードは8文字以上で設定してください。')
+      return
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setError('新しいパスワードが一致していません。')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const result = await confirmNewPassword(newPassword)
+      if (!result?.isSignedIn) {
+        const nextStep = result?.nextStep?.signInStep || 'UNKNOWN'
+        setError(`新しいパスワード設定後に追加認証が必要です。認証ステップ: ${nextStep}`)
+        return
+      }
+      navigate(redirectTo, { replace: true })
+    } catch {
+      setError('新しいパスワードの設定に失敗しました。ポリシーを満たす値で再入力してください。')
     } finally {
       setSubmitting(false)
     }
@@ -60,42 +105,86 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-            <label className="grid gap-2 text-sm font-medium text-slate-800">
-              メールアドレス
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-                placeholder="you@example.com"
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-medium text-slate-800">
-              パスワード
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-                placeholder="パスワードを入力"
-              />
-            </label>
+          {!requiresNewPassword && (
+            <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+              <label className="grid gap-2 text-sm font-medium text-slate-800">
+                メールアドレス
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  placeholder="you@example.com"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-slate-800">
+                パスワード
+                <input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  placeholder="パスワードを入力"
+                />
+              </label>
 
-            {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+              {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={submitting || !isAmplifyReady}
-              className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-sky-600 px-5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {submitting ? 'ログイン中...' : 'ログインして診断を開始'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={submitting || !isAmplifyReady}
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-sky-600 px-5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? 'ログイン中...' : 'ログインして診断を開始'}
+              </button>
+            </form>
+          )}
+
+          {requiresNewPassword && (
+            <form className="mt-8 space-y-4" onSubmit={handleNewPasswordSubmit}>
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+                初回ログインです。新しいパスワードを設定してください。
+              </div>
+              <label className="grid gap-2 text-sm font-medium text-slate-800">
+                新しいパスワード
+                <input
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  placeholder="8文字以上で入力"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-slate-800">
+                新しいパスワード（確認）
+                <input
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={newPasswordConfirm}
+                  onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  placeholder="もう一度入力"
+                />
+              </label>
+
+              {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={submitting || !isAmplifyReady}
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-sky-600 px-5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? '設定中...' : '新しいパスワードを設定して続行'}
+              </button>
+            </form>
+          )}
 
           <p className="mt-5 text-sm text-slate-600">
             アカウント未作成の場合は管理者が Cognito にユーザー追加してください。<Link to="/" className="font-semibold text-sky-700 hover:text-sky-600">LPへ戻る</Link>

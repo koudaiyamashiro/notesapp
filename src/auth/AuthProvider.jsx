@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { getCurrentUser, signIn, signOut } from 'aws-amplify/auth'
+import { confirmSignIn, getCurrentUser, signIn, signOut } from 'aws-amplify/auth'
 import { ensureAmplifyConfigured } from '../lib/amplifyClient.js'
 
 const AuthContext = createContext(null)
@@ -70,6 +70,17 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  const confirmNewPassword = async (newPassword) => {
+    if (!isAmplifyReady) {
+      throw new Error(configError || 'Amplify is not configured')
+    }
+    const result = await confirmSignIn({ challengeResponse: newPassword })
+    if (result?.isSignedIn) {
+      await refreshCurrentUser()
+    }
+    return result
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -78,6 +89,7 @@ export function AuthProvider({ children }) {
       isAmplifyReady,
       configError,
       signInWithEmail,
+      confirmNewPassword,
       signOutUser,
       refreshCurrentUser,
     }),
