@@ -33,6 +33,12 @@ async function loadFromPublicFile(path) {
   }
 }
 
+function loadFromBundledOutputs() {
+  const modules = import.meta.glob('../../amplify_outputs.json', { eager: true })
+  const first = Object.values(modules)[0]
+  return first?.default || null
+}
+
 export async function ensureAmplifyConfigured() {
   if (configStatus.ready) return configStatus
   if (configurePromise) return configurePromise
@@ -48,6 +54,11 @@ export async function ensureAmplifyConfigured() {
     }
 
     try {
+      const bundledOutputs = loadFromBundledOutputs()
+      if (applyAmplifyOutputs(bundledOutputs, 'bundled-file')) {
+        return configStatus
+      }
+
       const outputs = await loadFromPublicFile('/amplify_outputs.json')
       if (applyAmplifyOutputs(outputs, 'public-file')) {
         return configStatus
@@ -64,6 +75,7 @@ export async function ensureAmplifyConfigured() {
         error:
           'Amplify設定が見つかりません。amplify_outputs.json が未生成の可能性があります。Amplifyバックエンドをデプロイし、Hostingを再デプロイしてください。ローカルでは `npx ampx sandbox` 実行後に再読み込みしてください。',
       }
+      configurePromise = null
       return configStatus
     } catch {
       configStatus = {
@@ -72,6 +84,7 @@ export async function ensureAmplifyConfigured() {
         error:
           'Amplify設定の読み込みに失敗しました。Hostingのビルド成果物に amplify_outputs.json が含まれているか確認してください。',
       }
+      configurePromise = null
       return configStatus
     }
   })()
