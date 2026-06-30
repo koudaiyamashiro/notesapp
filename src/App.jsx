@@ -6,6 +6,7 @@ import Assessment from './pages/Assessment.jsx'
 import Analysis from './pages/Analysis.jsx'
 import Result from './pages/Result.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import History from './pages/History.jsx'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route path="/diagnosis" element={<Assessment />} />
             <Route path="/analysis" element={<Analysis />} />
             <Route path="/result" element={<Result />} />
+            <Route path="/history" element={<History />} />
           </Route>
         </Routes>
       </BrowserRouter>

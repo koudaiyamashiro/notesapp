@@ -4,6 +4,8 @@ import Header from '../components/Header.jsx'
 import CompanyModal from '../components/CompanyModal.jsx'
 import { generateCompanyInsights } from '../services/aiAnalysisService.js'
 import { analyzeCareerProfile } from '../services/careerAnalysisService.js'
+import { createDiagnosisHistory } from '../services/diagnosisHistoryService.js'
+import { useAuth } from '../auth/AuthProvider.jsx'
 import ResultSidebarNav from '../components/result/ResultSidebarNav.jsx'
 import MarketValueHero from '../components/result/MarketValueHero.jsx'
 import StrengthRadarPanel from '../components/result/StrengthRadarPanel.jsx'
@@ -113,16 +115,39 @@ function buildRadarData(radarSource = [], form = {}) {
   ]
 }
 
+function buildHistoryTitle(form = {}) {
+  const role = String(form.role || '未設定職種')
+  const industries = Array.isArray(form.desiredIndustry) ? form.desiredIndustry : []
+  const industry = industries[0] || '業界未設定'
+  return `${role}・${industry}志望の診断`
+}
+
 export default function Result() {
   const location = useLocation()
   const navigate = useNavigate()
-  const hasDiagnosisData = Boolean(location.state && typeof location.state === 'object')
-  const form = hasDiagnosisData ? location.state : DEFAULT_FORM
-  const result = useMemo(() => analyzeCareerProfile(form), [form])
+  const { user } = useAuth()
 
-  const [aiInsights, setAiInsights] = useState(null)
+  const statePayload = location.state && typeof location.state === 'object' ? location.state : null
+  const historyPayload = statePayload?.__historyPayload || null
+  const isHistoryView = Boolean(historyPayload)
+
+  const inputForm = isHistoryView
+    ? historyPayload?.profile || DEFAULT_FORM
+    : statePayload || null
+
+  const hasDiagnosisData = Boolean(inputForm)
+  const form = hasDiagnosisData ? inputForm : DEFAULT_FORM
+  const analyzedResult = useMemo(() => analyzeCareerProfile(form), [form])
+  const result = isHistoryView && historyPayload?.result ? historyPayload.result : analyzedResult
+
+  const initialAiFromHistory = isHistoryView ? historyPayload?.aiSummary?.aiInsights || null : null
+  const historyTopCompanies = isHistoryView && Array.isArray(historyPayload?.topCompanies) ? historyPayload.topCompanies : []
+
+  const [aiInsights, setAiInsights] = useState(initialAiFromHistory)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [saveStatus, setSaveStatus] = useState('idle')
+  const [saveMessage, setSaveMessage] = useState('')
   const [activeSectionId, setActiveSectionId] = useState('overview')
   const [openCompany, setOpenCompany] = useState(null)
   const [openDetailedDiagnosis, setOpenDetailedDiagnosis] = useState(false)
@@ -130,6 +155,13 @@ export default function Result() {
   useEffect(() => {
     if (!hasDiagnosisData) {
       setAiInsights(null)
+      setAiError('')
+      setAiLoading(false)
+      return
+    }
+
+    if (isHistoryView) {
+      setAiInsights(initialAiFromHistory)
       setAiError('')
       setAiLoading(false)
       return
@@ -158,12 +190,12 @@ export default function Result() {
     return () => {
       active = false
     }
-  }, [form, hasDiagnosisData, result])
+  }, [form, hasDiagnosisData, result, isHistoryView, initialAiFromHistory])
 
-  const recommendedCompanies = useMemo(
-    () => mergeCompanyInsights(result?.recommendedCompanies || [], aiInsights?.companies || []),
-    [aiInsights?.companies, result?.recommendedCompanies]
-  )
+  const recommendedCompanies = useMemo(() => {
+    if (historyTopCompanies.length > 0) return historyTopCompanies
+    return mergeCompanyInsights(result?.recommendedCompanies || [], aiInsights?.companies || [])
+  }, [aiInsights?.companies, result?.recommendedCompanies, historyTopCompanies])
 
   const marketMetrics = useMemo(() => {
     const score = Number(aiInsights?.marketValue?.score || result.rawScore || 0)
@@ -271,9 +303,9 @@ export default function Result() {
     })
   }, [aiInsights?.careerRoadmapDetails])
 
-  const aiSummary = aiInsights?.aiSummary || aiInsights?.summary || result.insights?.[0] || '現時点では市場価値が高く、準備次第でより良い条件の転職が狙えます。'
-  const positives = (aiInsights?.careerArchetype?.strengths || result.insights || []).slice(0, 3)
-  const warningCandidates = (aiInsights?.riskAnalysis || aiInsights?.careerArchetype?.risks || []).slice(0, 3)
+  const aiSummary = historyPayload?.aiSummary?.aiSummary || aiInsights?.aiSummary || aiInsights?.summary || result.insights?.[0] || '現時点では市場価値が高く、準備次第でより良い条件の転職が狙えます。'
+  const positives = (historyPayload?.aiSummary?.positives || aiInsights?.careerArchetype?.strengths || result.insights || []).slice(0, 3)
+  const warningCandidates = (historyPayload?.aiSummary?.warnings || aiInsights?.riskAnalysis || aiInsights?.careerArchetype?.risks || []).slice(0, 3)
   const warnings = warningCandidates.length > 0
     ? warningCandidates
     : ['訴求ポイントが散らばると面接で強みが伝わりにくくなるため、軸の統一が必要です。', '希望条件を増やしすぎると選考母数が減るため、優先順位を決める必要があります。', '市場変動により採用要件が短期で変わるため、情報の更新頻度を上げる必要があります。']
@@ -298,6 +330,10 @@ export default function Result() {
   }))
 
   const aiStrategySummary = useMemo(() => {
+    if (historyPayload?.aiSummary?.aiStrategySummary) {
+      return historyPayload.aiSummary.aiStrategySummary
+    }
+
     const topIndustry = result.industries?.[0]?.label || '-'
     const topRole = result.roles?.[0]?.role || '-'
     const topCompany = recommendedCompanies?.[0]?.name || '-'
@@ -324,6 +360,58 @@ export default function Result() {
       ],
     }
   }, [actions, aiSummary, marketMetrics.deviation, marketMetrics.score, positives, recommendedCompanies, result.industries, result.roles, warnings])
+
+  useEffect(() => {
+    if (!hasDiagnosisData || isHistoryView || !user?.id) return
+    if (saveStatus !== 'idle') return
+
+    const payload = {
+      userId: String(user.id),
+      userEmail: String(user.email || ''),
+      title: buildHistoryTitle(form),
+      profileJson: JSON.stringify(form),
+      resultJson: JSON.stringify(result),
+      topCompaniesJson: JSON.stringify((recommendedCompanies || []).slice(0, 5)),
+      aiSummaryJson: JSON.stringify({
+        aiInsights,
+        aiSummary,
+        positives,
+        warnings,
+        aiStrategySummary,
+      }),
+      marketValueScore: Number(marketMetrics.score || 0),
+      successProbability: Number(successRates?.[0]?.value || 0),
+    }
+
+    setSaveStatus('saving')
+    setSaveMessage('診断履歴を保存しています...')
+
+    createDiagnosisHistory(payload)
+      .then(() => {
+        setSaveStatus('success')
+        setSaveMessage('診断履歴を保存しました。')
+      })
+      .catch(() => {
+        setSaveStatus('error')
+        setSaveMessage('診断履歴の保存に失敗しました。結果表示は続行できます。')
+      })
+  }, [
+    hasDiagnosisData,
+    isHistoryView,
+    user?.id,
+    user?.email,
+    saveStatus,
+    form,
+    result,
+    recommendedCompanies,
+    aiInsights,
+    aiSummary,
+    positives,
+    warnings,
+    aiStrategySummary,
+    marketMetrics.score,
+    successRates,
+  ])
 
   const navSections = useMemo(
     () => [
@@ -405,6 +493,24 @@ export default function Result() {
         )}
         {!aiLoading && aiError && (
           <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{aiError}</div>
+        )}
+        {saveStatus !== 'idle' && !isHistoryView && (
+          <div
+            className={`mb-5 rounded-xl px-4 py-3 text-sm ${
+              saveStatus === 'success'
+                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                : saveStatus === 'error'
+                  ? 'border border-rose-200 bg-rose-50 text-rose-700'
+                  : 'border border-slate-200 bg-white text-slate-600'
+            }`}
+          >
+            {saveMessage}
+          </div>
+        )}
+        {isHistoryView && (
+          <div className="mb-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+            履歴から読み込んだ診断結果を表示しています。
+          </div>
         )}
 
         <div className="grid gap-5 lg:grid-cols-[280px_1fr]">

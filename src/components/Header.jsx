@@ -45,6 +45,9 @@ export default function Header() {
 
           {isAuthenticated && (
             <>
+              <Link className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-transform transform hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-200" to="/history">
+                診断履歴
+              </Link>
               <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 md:inline-flex">
                 {user?.email || 'ログイン中'}
               </span>
