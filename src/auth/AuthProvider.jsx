@@ -1,5 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { confirmSignIn, getCurrentUser, signIn, signOut } from 'aws-amplify/auth'
+import {
+  confirmResetPassword,
+  confirmSignIn,
+  confirmSignUp,
+  getCurrentUser,
+  resendSignUpCode,
+  resetPassword,
+  signIn,
+  signOut,
+  signUp,
+} from 'aws-amplify/auth'
 import { ensureAmplifyConfigured } from '../lib/amplifyClient.js'
 
 const AuthContext = createContext(null)
@@ -65,6 +75,56 @@ export function AuthProvider({ children }) {
     return result
   }
 
+  const signUpWithEmail = async (email, password) => {
+    if (!isAmplifyReady) {
+      throw new Error(configError || 'Amplify is not configured')
+    }
+    return signUp({
+      username: email,
+      password,
+      options: {
+        userAttributes: {
+          email,
+        },
+      },
+    })
+  }
+
+  const confirmSignUpCode = async (email, code) => {
+    if (!isAmplifyReady) {
+      throw new Error(configError || 'Amplify is not configured')
+    }
+    return confirmSignUp({
+      username: email,
+      confirmationCode: code,
+    })
+  }
+
+  const resendSignUpConfirmationCode = async (email) => {
+    if (!isAmplifyReady) {
+      throw new Error(configError || 'Amplify is not configured')
+    }
+    return resendSignUpCode({ username: email })
+  }
+
+  const startResetPassword = async (email) => {
+    if (!isAmplifyReady) {
+      throw new Error(configError || 'Amplify is not configured')
+    }
+    return resetPassword({ username: email })
+  }
+
+  const submitResetPassword = async (email, code, newPassword) => {
+    if (!isAmplifyReady) {
+      throw new Error(configError || 'Amplify is not configured')
+    }
+    return confirmResetPassword({
+      username: email,
+      confirmationCode: code,
+      newPassword,
+    })
+  }
+
   const signOutUser = async () => {
     await signOut()
     setUser(null)
@@ -89,6 +149,11 @@ export function AuthProvider({ children }) {
       isAmplifyReady,
       configError,
       signInWithEmail,
+      signUpWithEmail,
+      confirmSignUpCode,
+      resendSignUpConfirmationCode,
+      startResetPassword,
+      submitResetPassword,
       confirmNewPassword,
       signOutUser,
       refreshCurrentUser,
