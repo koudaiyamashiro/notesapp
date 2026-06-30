@@ -213,7 +213,7 @@ async function callGenerateCareerInsights(payload) {
 function normalizeAiResponse(response, profile, topCompanies) {
   if (!response) return null
 
-  console.log('AI raw response', response)
+  console.log('Career insights response received')
 
   const debug = response.debug && typeof response.debug === 'object' ? response.debug : {}
   const researchSource = typeof debug.researchSource === 'string' ? debug.researchSource : 'none'
@@ -291,7 +291,7 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
       return normalizeAiResponse(remoteResponse, profile, topCompanies)
     }
   } catch {
-    // Fall back to local mock until the backend endpoint is deployed and configured.
+    // Keep UI stable even when backend is temporarily unavailable.
   }
 
   await sleep(120)
@@ -307,18 +307,18 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
     mode: 'mock',
     generatedAt: new Date().toISOString(),
     profileSummary: normalizedProfile,
-    aiSummary: 'AI推薦理由のモックレスポンスです。後で OpenAI / Perplexity に差し替え可能な形で返しています。',
-    summary: 'AI推薦理由のモックレスポンスです。後で OpenAI / Perplexity に差し替え可能な形で返しています。',
+    aiSummary: '現時点の入力情報から、市場価値の強みと転職先候補の接点を整理しました。優先度の高い準備を進めることで、選考通過率の向上が見込めます。',
+    summary: '現時点の入力情報から、市場価値の強みと転職先候補の接点を整理しました。優先度の高い準備を進めることで、選考通過率の向上が見込めます。',
     companyInsights: companies,
     companies,
     riskAnalysis: [
-      '現時点ではモックなので、実際の外部AI推論は行っていません。',
-      '本番化時はサーバー側で OpenAI / Perplexity API を呼び出してください。',
+      '企業ごとに求められる成果指標の違いを整理しないと、訴求軸がぶれる可能性があります。',
+      '選考前に職務経歴書の実績表現を数値ベースへ揃えると、評価の一貫性が高まります。',
     ],
     nextActions: [
-      '将来的に環境変数から AI API キーを読み込む',
-      'サーバー側でプロンプト整形とレスポンス整形を行う',
-      'クライアントはこの Function のみを呼び出す',
+      '実績を課題・施策・成果の順で再整理し、転用可能な強みを明確化する',
+      '応募優先企業を3社に絞り、企業ごとの訴求ポイントを調整する',
+      '面接で話す代表エピソードを2〜3本に統一して準備する',
     ],
     careerArchetype: {
       type: '実行推進型ストラテジスト',

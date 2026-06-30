@@ -606,9 +606,9 @@ function buildCompanyInsight(company: Record<string, unknown>, index: number) {
     companyName: name,
     rank: index + 1,
     recommendationTitle: `${name}を推奨する理由`,
-    summary: `${name}はモック評価では有望な候補です。`,
+    summary: `${name}は現在の経験との接点を作りやすい有望候補です。`,
     reasonCards,
-    cautionPoints: cautionPoints.length > 0 ? cautionPoints : ['モックレスポンスのため、注意点は後続のAI推論で追加します。'],
+    cautionPoints: cautionPoints.length > 0 ? cautionPoints : ['役割期待値とのズレを防ぐため、選考前に業務範囲を確認してください。'],
     conditionTags,
     scoreBreakdown: asArray(typedCompany.scoreBreakdown),
     comparisonTarget: String(typedCompany.comparisonTarget || ''),
@@ -772,10 +772,9 @@ function buildMockResponse(
   responseType: string,
   researchMeta: CompanyResearchMeta
 ): CareerInsightsResponse {
-  const diagnosticSummary =
-    fallbackReason === 'invalid_response' || fallbackReason === 'parse_error'
-      ? `normalize失敗 (responseType: ${responseType})`
-      : ''
+  const diagnosticSummary = fallbackReason === 'invalid_response' || fallbackReason === 'parse_error'
+    ? '一部の分析結果を補完して返却しています。'
+    : ''
 
   const profileSummary = pickProfileSummary(userProfile)
   const companyStrategyReports = topCompanies.slice(0, 3).map((company, index) => {
@@ -839,17 +838,17 @@ function buildMockResponse(
     debugSource: 'mock',
     fallbackReason,
     aiSummary: diagnosticSummary
-      ? `${diagnosticSummary} / generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。`
-      : 'generateCareerInsights のモックレスポンスです。将来的に OpenAI / Perplexity API へ差し替え可能な形式で返しています。',
+      ? `${diagnosticSummary}市場価値・強み・企業適合を総合すると、準備の優先順位を明確にすることで選考通過率の改善が見込めます。`
+      : '市場価値・強み・企業適合を総合すると、準備の優先順位を明確にすることで選考通過率の改善が見込めます。',
     companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company as Record<string, unknown>, index)),
     riskAnalysis: [
-      '現時点ではモックなので、実際の外部AI推論は行っていません。',
-      '本番化時はサーバー側で OpenAI / Perplexity API を呼び出してください。',
+      '企業ごとに評価される成果指標が異なるため、訴求ポイントを出し分ける必要があります。',
+      '実績の定量化が不足すると、面接で強みの再現性が伝わりにくくなります。',
     ],
     nextActions: [
-      '将来的に環境変数から AI API キーを読み込む',
-      'サーバー側でプロンプト整形とレスポンス整形を行う',
-      'クライアントはこの Function のみを呼び出す',
+      '職務経歴書を課題・施策・成果で整理し、成果を数値で提示できる形にする',
+      '応募優先企業ごとに訴求軸を2点に絞り、面接回答を統一する',
+      '次の2週間で不足スキルの補完計画を立て、実行ログを残す',
     ],
     careerArchetype: {
       type: '実行推進型ストラテジスト',

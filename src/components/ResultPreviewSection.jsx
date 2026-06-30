@@ -50,7 +50,7 @@ export default function ResultPreviewSection() {
                   <Brain className="h-4 w-4 text-sky-500" />
                   AI分析サマリー
                 </div>
-                <span className="rounded-full bg-[#EAF6FF] px-3 py-1 text-xs font-semibold text-sky-700">診断結果画面モック</span>
+                <span className="rounded-full bg-[#EAF6FF] px-3 py-1 text-xs font-semibold text-sky-700">診断結果プレビュー</span>
               </div>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">

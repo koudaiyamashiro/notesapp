@@ -45,7 +45,7 @@ export default function ResultSidebarNav({ sections = [], summary = {}, activeSe
           <ChartSpline className="h-4 w-4 text-sky-500" />
         </div>
         <div className="mt-3 space-y-2 text-sm text-slate-700">
-          <p className="rounded-lg bg-[#F8FAFC] px-3 py-2">AI総評: <span className="font-semibold text-slate-900">{aiSummaryShort}</span></p>
+          <p className="rounded-lg bg-[#F8FAFC] px-3 py-2">AI戦略要約: <span className="font-semibold text-slate-900">{aiSummaryShort}</span></p>
           <p className="rounded-lg bg-[#F8FAFC] px-3 py-2">推奨業界1位: <span className="font-semibold text-slate-900">{summary.topIndustry || '-'}</span></p>
           <p className="rounded-lg bg-[#F8FAFC] px-3 py-2">推奨職種1位: <span className="font-semibold text-slate-900">{summary.topRole || '-'}</span></p>
           <p className="rounded-lg bg-[#F8FAFC] px-3 py-2">推奨企業1位: <span className="font-semibold text-slate-900">{summary.topCompany || '-'}</span></p>
