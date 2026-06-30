@@ -382,6 +382,101 @@ a {
   color: #b83d3d;
 }
 
+@keyframes marquee-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+@keyframes float-y-soft {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+.marquee-shell {
+  overflow: hidden;
+  position: relative;
+}
+
+.marquee-shell::before,
+.marquee-shell::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7rem;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.marquee-shell::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0));
+}
+
+.marquee-shell::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0));
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 0.9rem;
+  animation: marquee-scroll 28s linear infinite;
+  will-change: transform;
+}
+
+.marquee-shell:hover .marquee-track {
+  animation-duration: 46s;
+}
+
+.marquee-row {
+  display: flex;
+  width: max-content;
+  gap: 0.9rem;
+}
+
+.analysis-float {
+  animation: float-y 7.5s ease-in-out infinite;
+}
+
+.analysis-float-soft {
+  animation: float-y-soft 6.5s ease-in-out infinite;
+}
+
+.mock-grid {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.18) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.soft-shadow {
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.07);
+}
+
 @media (max-width: 980px) {
   .hero-card,
   .grid-two,
