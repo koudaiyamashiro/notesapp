@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import Header from '../components/Header.jsx'
 import { useAuth } from '../auth/AuthProvider.jsx'
 
@@ -11,9 +12,27 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showNewPasswordConfirm, setShowNewPasswordConfirm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [requiresNewPassword, setRequiresNewPassword] = useState(false)
+
+  const newPasswordChecks = useMemo(() => {
+    const value = String(newPassword || '')
+    return [
+      { key: 'len', label: '8文字以上', ok: value.length >= 8 },
+      { key: 'num', label: '数字を含む', ok: /\d/.test(value) },
+      { key: 'lower', label: '小文字を含む', ok: /[a-z]/.test(value) },
+      { key: 'upper', label: '大文字を含む', ok: /[A-Z]/.test(value) },
+      { key: 'special', label: '特殊文字を含む', ok: /[^A-Za-z0-9]/.test(value) },
+      { key: 'trim', label: '先頭・末尾にスペースなし', ok: value.length > 0 && value.trim() === value },
+    ]
+  }, [newPassword])
+
+  const isNewPasswordValid = useMemo(() => newPasswordChecks.every((item) => item.ok), [newPasswordChecks])
+  const passwordsMatched = newPasswordConfirm.length > 0 && newPassword === newPasswordConfirm
 
   const isNewPasswordChallenge = (result) => {
     const step = result?.nextStep?.signInStep || ''
@@ -60,8 +79,8 @@ export default function LoginPage() {
     event.preventDefault()
     setError('')
 
-    if (newPassword.length < 8) {
-      setError('新しいパスワードは8文字以上で設定してください。')
+    if (!isNewPasswordValid) {
+      setError('新しいパスワードがポリシーを満たしていません。条件を確認してください。')
       return
     }
     if (newPassword !== newPasswordConfirm) {
@@ -121,15 +140,25 @@ export default function LoginPage() {
               </label>
               <label className="grid gap-2 text-sm font-medium text-slate-800">
                 パスワード
-                <input
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-                  placeholder="パスワードを入力"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 pr-10 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    placeholder="パスワードを入力"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label={showPassword ? 'パスワードを非表示にする' : 'パスワードを表示する'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </label>
 
               {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
@@ -151,34 +180,71 @@ export default function LoginPage() {
               </div>
               <label className="grid gap-2 text-sm font-medium text-slate-800">
                 新しいパスワード
-                <input
-                  type="password"
-                  required
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-                  placeholder="8文字以上で入力"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 pr-10 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    placeholder="8文字以上で入力"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((prev) => !prev)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label={showNewPassword ? '新しいパスワードを非表示にする' : '新しいパスワードを表示する'}
+                  >
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </label>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Password Policy</p>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {newPasswordChecks.map((item) => (
+                    <li key={item.key} className={item.ok ? 'text-emerald-700' : 'text-slate-400'}>
+                      <span className="mr-2 font-semibold">{item.ok ? '✓' : '✗'}</span>
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
               <label className="grid gap-2 text-sm font-medium text-slate-800">
                 新しいパスワード（確認）
-                <input
-                  type="password"
-                  required
-                  autoComplete="new-password"
-                  value={newPasswordConfirm}
-                  onChange={(event) => setNewPasswordConfirm(event.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-                  placeholder="もう一度入力"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPasswordConfirm ? 'text' : 'password'}
+                    required
+                    autoComplete="new-password"
+                    value={newPasswordConfirm}
+                    onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 pr-10 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    placeholder="もう一度入力"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPasswordConfirm((prev) => !prev)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label={showNewPasswordConfirm ? '確認用パスワードを非表示にする' : '確認用パスワードを表示する'}
+                  >
+                    {showNewPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </label>
+
+              {newPasswordConfirm.length > 0 && (
+                <p className={`rounded-lg px-3 py-2 text-sm ${passwordsMatched ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-slate-200 bg-slate-100 text-slate-500'}`}>
+                  {passwordsMatched ? 'パスワードが一致しています' : 'パスワードが一致しません'}
+                </p>
+              )}
 
               {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
               <button
                 type="submit"
-                disabled={submitting || !isAmplifyReady}
+                disabled={submitting || !isAmplifyReady || !isNewPasswordValid || !passwordsMatched}
                 className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-sky-600 px-5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting ? '設定中...' : '新しいパスワードを設定して続行'}
