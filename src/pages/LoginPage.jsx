@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthProvider.jsx'
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { signInWithEmail, isAuthenticated, loading, isAmplifyReady } = useAuth()
+  const { signInWithEmail, isAuthenticated, loading, isAmplifyReady, configError } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -53,7 +53,10 @@ export default function LoginPage() {
 
           {!isAmplifyReady && (
             <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              amplify_outputs.json を読み込めませんでした。Amplify 環境をデプロイ後、再読み込みしてください。
+              <p className="font-semibold">Amplify設定を読み込めませんでした。</p>
+              <p className="mt-1">主な原因: amplify_outputs.json が未生成、またはHosting成果物に含まれていない可能性があります。</p>
+              {configError && <p className="mt-1">詳細: {configError}</p>}
+              <p className="mt-2">対処: 1) Amplifyバックエンドを更新/デプロイ 2) Hostingを再デプロイ 3) 再読み込み</p>
             </div>
           )}
 

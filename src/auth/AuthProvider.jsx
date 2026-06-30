@@ -16,6 +16,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isAmplifyReady, setIsAmplifyReady] = useState(false)
+  const [configError, setConfigError] = useState('')
 
   const refreshCurrentUser = async () => {
     try {
@@ -32,11 +33,13 @@ export function AuthProvider({ children }) {
     let active = true
 
     ;(async () => {
-      const ready = await ensureAmplifyConfigured()
+      const status = await ensureAmplifyConfigured()
       if (!active) return
 
-      setIsAmplifyReady(ready)
-      if (ready) {
+      setIsAmplifyReady(Boolean(status?.ready))
+      setConfigError(status?.error || '')
+
+      if (status?.ready) {
         await refreshCurrentUser()
       } else {
         setUser(null)
@@ -52,6 +55,9 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signInWithEmail = async (email, password) => {
+    if (!isAmplifyReady) {
+      throw new Error(configError || 'Amplify is not configured')
+    }
     const result = await signIn({ username: email, password })
     if (result?.isSignedIn) {
       await refreshCurrentUser()
@@ -70,11 +76,12 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(user),
       loading,
       isAmplifyReady,
+      configError,
       signInWithEmail,
       signOutUser,
       refreshCurrentUser,
     }),
-    [user, loading, isAmplifyReady]
+    [user, loading, isAmplifyReady, configError]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
