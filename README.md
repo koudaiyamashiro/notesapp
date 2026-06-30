@@ -14,3 +14,16 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## Authentication (Amplify Cognito)
+
+- Login is implemented with Amplify Auth (Cognito) using email + password.
+- Public route: `/`
+- Protected routes: `/assessment`, `/diagnosis`, `/analysis`, `/result`
+- App loads Auth config from `/amplify_outputs.json` at runtime.
+
+### Dev test account policy
+
+- Do not hardcode passwords, API keys, or secrets in frontend code.
+- For local verification, create a Cognito test user manually (example email: `test@example.com`).
+- Password must be set only in Cognito/User Pool management.
