@@ -68,6 +68,12 @@ export default function CompanyRecommendationSection({ companies = [], onOpenCom
                 <ul className="mt-2 space-y-1 text-xs text-slate-600">
                   {(company.aiRecommendation.matchedUserFactors || []).slice(0, 2).map((item) => <li key={item}>- {item}</li>)}
                 </ul>
+                {company.aiRecommendation.evidenceSummary && (
+                  <p className="mt-2 text-xs leading-6 text-slate-600">根拠要約: {company.aiRecommendation.evidenceSummary}</p>
+                )}
+                {(company.aiRecommendation.preparationActions || []).length > 0 && (
+                  <p className="mt-2 text-xs leading-6 text-slate-600">準備: {(company.aiRecommendation.preparationActions || []).slice(0, 1).join(' / ')}</p>
+                )}
               </div>
             )}
 

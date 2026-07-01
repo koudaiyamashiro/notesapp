@@ -13,6 +13,15 @@ const schema = a.schema({
       successProbability: a.integer(),
     })
     .authorization((allow) => [allow.owner()]),
+  CompanyResearchCache: a
+    .model({
+      companyName: a.string().required(),
+      normalizedName: a.string().required(),
+      profileJson: a.string().required(),
+      updatedAt: a.datetime().required(),
+      ttl: a.integer(),
+    })
+    .authorization((allow) => [allow.authenticated()]),
 });
 
 export type Schema = ClientSchema<typeof schema>;

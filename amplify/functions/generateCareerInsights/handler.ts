@@ -1,3 +1,5 @@
+import { runDynamicCompanyEngine } from './services/careerAnalysisService'
+
 declare const process: { env: Record<string, string | undefined> }
 
 const DEBUG_VERSION = '2026-06-19-debug-v1'
@@ -316,6 +318,7 @@ type CareerInsightsResponse = {
   fallbackReason?: string | null
   aiSummary: string
   companyInsights: Array<Record<string, unknown>>
+  topCompanies?: Array<Record<string, unknown>>
   riskAnalysis: string[]
   nextActions: string[]
   careerArchetype: {
@@ -473,6 +476,13 @@ type CompanyResearchMeta = {
   researchFallback: boolean
 }
 
+type DynamicProfileLike = {
+  name: string
+  sources?: Array<{ title?: string; url?: string; snippet?: string; sourceType?: string }>
+  sourceSummaries?: string[]
+  businessSummary?: string
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
@@ -503,6 +513,62 @@ function compressResearchText(text: string, minLength = 200, maxLength = 300) {
   const lastStop = Math.max(clipped.lastIndexOf('。'), clipped.lastIndexOf('.'))
   if (lastStop >= minLength) return clipped.slice(0, lastStop + 1)
   return clipped
+}
+
+function toCompanyResearchFromProfiles(profiles: DynamicProfileLike[]) {
+  return profiles.slice(0, 5).map((profile) => {
+    const sources = Array.isArray(profile.sources) ? profile.sources : []
+    const sections = {
+      business: [] as string[],
+      products: [] as string[],
+      hiring: [] as string[],
+      news: [] as string[],
+      ir: [] as string[],
+      competitors: [] as string[],
+      reviews: [] as string[],
+    }
+
+    for (const source of sources) {
+      const line = [safeText(source.title, 80), safeText(source.snippet, 180), safeText(source.url, 120)]
+        .filter(Boolean)
+        .join(' | ')
+      const sourceType = String(source.sourceType || '')
+
+      if (sourceType === 'official') {
+        sections.business.push(line)
+      } else if (sourceType === 'hiring' || sourceType === 'job') {
+        sections.hiring.push(line)
+      } else if (sourceType === 'review') {
+        sections.reviews.push(line)
+      } else if (sourceType === 'news') {
+        sections.news.push(line)
+      } else {
+        sections.products.push(line)
+      }
+    }
+
+    const summarySource = [
+      safeText(profile.businessSummary, 400),
+      ...(Array.isArray(profile.sourceSummaries) ? profile.sourceSummaries.map((v) => safeText(v, 200)) : []),
+      ...Object.values(sections).flat(),
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    return {
+      companyName: String(profile.name || 'Unknown Company'),
+      researchSummary: compressResearchText(summarySource, 150, 900),
+      researchSections: {
+        business: sections.business.slice(0, 3),
+        products: sections.products.slice(0, 3),
+        hiring: sections.hiring.slice(0, 3),
+        news: sections.news.slice(0, 3),
+        ir: sections.ir.slice(0, 2),
+        competitors: sections.competitors.slice(0, 2),
+        reviews: sections.reviews.slice(0, 3),
+      },
+    }
+  })
 }
 
 async function fetchCompanyResearchFromTavily(apiKey: string, companyName: string) {
@@ -1325,6 +1391,7 @@ function buildMockResponse(
       ? `${diagnosticSummary}市場価値・強み・企業適合を総合すると、準備の優先順位を明確にすることで選考通過率の改善が見込めます。`
       : '市場価値・強み・企業適合を総合すると、準備の優先順位を明確にすることで選考通過率の改善が見込めます。',
     companyInsights: topCompanies.map((company, index) => buildCompanyInsight(company as Record<string, unknown>, index)),
+    topCompanies: topCompanies.slice(0, 5) as Array<Record<string, unknown>>,
     riskAnalysis: [
       '企業ごとに評価される成果指標が異なるため、訴求ポイントを出し分ける必要があります。',
       '実績の定量化が不足すると、面接で強みの再現性が伝わりにくくなります。',
@@ -1979,6 +2046,7 @@ async function generateWithOpenAI(
     riskAnalysis,
     nextActions,
     companyInsights,
+    topCompanies: topCompanies.slice(0, 5) as Array<Record<string, unknown>>,
     companyRecommendations,
     careerArchetype: careerArchetypeRaw,
     marketValue: marketValueRaw,
@@ -2034,28 +2102,55 @@ export async function handler(event: { body?: string; requestContext?: { http?: 
     userProfile = (typedRequestBody.userProfile || {}) as Record<string, unknown>
     topCompanies = asArray(typedRequestBody.topCompanies)
     analysisResult = (typedRequestBody.analysisResult || {}) as Record<string, unknown>
-    const topCompaniesForResearch = topCompanies.slice(0, 3)
-
     const tavilyApiKey = process.env.TAVILY_API_KEY || ''
+    const cacheTableName = process.env.COMPANY_RESEARCH_CACHE_TABLE || ''
     console.log('hasTavilyKey', Boolean(tavilyApiKey))
 
     let companyResearch: CompanyResearchItem[] = []
 
-    if (tavilyApiKey) {
-      try {
-        const researchResult = await fetchTopCompanyResearch(tavilyApiKey, topCompaniesForResearch)
-        companyResearch = researchResult.companyResearch
-        researchMeta = researchResult.meta
-      } catch (error) {
+    try {
+      const dynamic = await runDynamicCompanyEngine({
+        seedCompanies: asArray(topCompanies).map((item) => (item || {}) as Record<string, unknown>),
+        userProfile,
+        tavilyApiKey,
+        cacheTableName,
+      })
+
+      if (dynamic.topCompanies.length > 0) {
+        topCompanies = dynamic.topCompanies
+      }
+
+      companyResearch = toCompanyResearchFromProfiles(dynamic.companyProfiles as DynamicProfileLike[])
+      researchMeta = {
+        researchSource: dynamic.researchSource === 'tavily' ? 'tavily' : 'none',
+        researchedCompanyCount: dynamic.companyProfiles.length,
+        researchFallback: dynamic.companyProfiles.length === 0,
+      }
+
+      console.log('companyDiscoveryDynamic', {
+        topCompanies: topCompanies.length,
+        researchedProfiles: dynamic.companyProfiles.length,
+        cacheHitCount: dynamic.cacheHitCount,
+        cacheMissCount: dynamic.cacheMissCount,
+      })
+    } catch (error) {
+      const topCompaniesForResearch = topCompanies.slice(0, 3)
+      if (tavilyApiKey) {
+        try {
+          const researchResult = await fetchTopCompanyResearch(tavilyApiKey, topCompaniesForResearch)
+          companyResearch = researchResult.companyResearch
+          researchMeta = researchResult.meta
+        } catch {
+          console.log('companyResearchSuccess', 0)
+          console.log('companyResearchFailed', topCompaniesForResearch.length)
+          console.log('researchFallback', true)
+        }
+      } else {
+        console.log('companyResearchStart')
         console.log('companyResearchSuccess', 0)
         console.log('companyResearchFailed', topCompaniesForResearch.length)
         console.log('researchFallback', true)
       }
-    } else {
-      console.log('companyResearchStart')
-      console.log('companyResearchSuccess', 0)
-      console.log('companyResearchFailed', topCompaniesForResearch.length)
-      console.log('researchFallback', true)
     }
 
     const apiKey = process.env.OPENAI_API_KEY || ''

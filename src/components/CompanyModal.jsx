@@ -172,6 +172,14 @@ export default function CompanyModal({ open, onClose, company }) {
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-slate-900">年収・働き方の現実性</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                  <li>- 年収適合: {recommendation.salaryFit || '公開情報ベースで確認中です。'}</li>
+                  <li>- 働き方適合: {recommendation.workStyleFit || '公開情報ベースで確認中です。'}</li>
+                </ul>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
                 <p className="text-sm font-semibold text-slate-900">内定可能性の目安</p>
                 <p className="mt-2 text-sm text-slate-600">{offerProbability}</p>
               </div>

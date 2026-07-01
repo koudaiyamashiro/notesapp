@@ -209,6 +209,9 @@ function normalizeCompanyRecommendation(item = {}, index = 0) {
     preparationActions: Array.isArray(item.preparationActions) ? item.preparationActions : [],
     evidenceSummary: String(item.evidenceSummary || ''),
     sources: Array.isArray(item.sources) ? item.sources : [],
+    scoreDetails: item.scoreDetails && typeof item.scoreDetails === 'object' ? item.scoreDetails : {},
+    hiringReality: String(item.hiringReality || ''),
+    weaknessRisk: String(item.weaknessRisk || ''),
   }
 }
 
@@ -250,7 +253,7 @@ function normalizeAiResponse(response, profile, topCompanies) {
   const researchedCompanyCount = Number.isFinite(Number(debug.researchedCompanyCount)) ? Number(debug.researchedCompanyCount) : 0
   const totalProcessingMs = Number.isFinite(Number(debug.totalProcessingMs)) ? Number(debug.totalProcessingMs) : 0
 
-  const companies = (response.companies || response.companyInsights || []).map((company, index) => normalizeCompanyInsight(company, index))
+  const companies = (response.topCompanies || response.companies || response.companyInsights || []).map((company, index) => normalizeCompanyInsight(company, index))
   const companyRecommendations = (response.companyRecommendations || []).map((company, index) => normalizeCompanyRecommendation(company, index))
   const careerArchetype = response.careerArchetype || {
     type: '実行推進型ストラテジスト',
@@ -356,7 +359,7 @@ function normalizeAiResponse(response, profile, topCompanies) {
     researchSource,
     researchedCompanyCount,
     totalProcessingMs,
-    topCompanies,
+    topCompanies: response.topCompanies || topCompanies,
   }
 }
 
