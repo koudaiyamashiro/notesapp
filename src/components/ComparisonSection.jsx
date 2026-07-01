@@ -19,7 +19,7 @@ function markClass(value, isPrimary = false) {
 
 export default function ComparisonSection() {
   return (
-    <section id="compare" className="bg-white py-24">
+    <section id="comparison" className="bg-white py-24">
       <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-10">
         <SectionReveal>
           <div className="max-w-3xl">

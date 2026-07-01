@@ -10,6 +10,10 @@ html {
   scroll-behavior: smooth;
 }
 
+section[id] {
+  scroll-margin-top: 6.5rem;
+}
+
 body {
   @apply min-h-screen bg-slate-50 text-slate-950 antialiased;
   background-image: radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 28%), radial-gradient(circle at 20% 10%, rgba(59, 130, 246, 0.08), transparent 22%);
@@ -22,4 +26,29 @@ body {
 
 ::selection {
   @apply bg-sky-300 text-slate-950;
+}
+
+@keyframes logo-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.logo-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, white 8%, white 92%, transparent);
+}
+
+.logo-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: logo-marquee 32s linear infinite;
+  will-change: transform;
+}
+
+.logo-marquee:hover .logo-marquee-track {
+  animation-play-state: paused;
 }

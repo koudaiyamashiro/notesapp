@@ -26,7 +26,7 @@ const features = [
 
 export default function FeatureSection() {
   return (
-    <section id="feature" className="bg-white py-24">
+    <section id="features" className="bg-white py-24">
       <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-10">
         <SectionReveal className="grid items-center gap-10 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="rounded-[2rem] border border-slate-200 bg-[#F8FAFC] p-8">
