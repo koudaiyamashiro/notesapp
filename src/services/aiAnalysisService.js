@@ -182,6 +182,36 @@ function normalizeCompanyInsight(company, index) {
   }
 }
 
+function normalizeBreakdownItem(item = {}, fallback = {}) {
+  return {
+    score: Number(item.score ?? fallback.score ?? 70),
+    reason: String(item.reason || fallback.reason || ''),
+    positiveFactors: Array.isArray(item.positiveFactors) ? item.positiveFactors : (fallback.positiveFactors || []),
+    negativeFactors: Array.isArray(item.negativeFactors) ? item.negativeFactors : (fallback.negativeFactors || []),
+    improvementActions: Array.isArray(item.improvementActions) ? item.improvementActions : (fallback.improvementActions || []),
+  }
+}
+
+function normalizeCompanyRecommendation(item = {}, index = 0) {
+  return {
+    companyName: item.companyName || item.name || `Company ${index + 1}`,
+    matchScore: Number(item.matchScore || item.fitScore || 75),
+    whyRecommended: String(item.whyRecommended || item.summary || ''),
+    matchedUserFactors: Array.isArray(item.matchedUserFactors) ? item.matchedUserFactors : [],
+    companyFitReasons: Array.isArray(item.companyFitReasons) ? item.companyFitReasons : [],
+    roleFit: String(item.roleFit || ''),
+    salaryFit: String(item.salaryFit || ''),
+    cultureFit: String(item.cultureFit || ''),
+    workStyleFit: String(item.workStyleFit || ''),
+    growthFit: String(item.growthFit || ''),
+    concerns: Array.isArray(item.concerns) ? item.concerns : [],
+    interviewAppealPoints: Array.isArray(item.interviewAppealPoints) ? item.interviewAppealPoints : [],
+    preparationActions: Array.isArray(item.preparationActions) ? item.preparationActions : [],
+    evidenceSummary: String(item.evidenceSummary || ''),
+    sources: Array.isArray(item.sources) ? item.sources : [],
+  }
+}
+
 async function callGenerateCareerInsights(payload) {
   const endpoint = resolveCareerInsightsEndpoint()
   if (!endpoint) return null
@@ -221,6 +251,7 @@ function normalizeAiResponse(response, profile, topCompanies) {
   const totalProcessingMs = Number.isFinite(Number(debug.totalProcessingMs)) ? Number(debug.totalProcessingMs) : 0
 
   const companies = (response.companies || response.companyInsights || []).map((company, index) => normalizeCompanyInsight(company, index))
+  const companyRecommendations = (response.companyRecommendations || []).map((company, index) => normalizeCompanyRecommendation(company, index))
   const careerArchetype = response.careerArchetype || {
     type: '実行推進型ストラテジスト',
     summary: '課題整理と実行推進のバランスで成果を出しやすいタイプです。',
@@ -241,6 +272,42 @@ function normalizeAiResponse(response, profile, topCompanies) {
       managementPotential: 65,
       growthPotential: 75,
     },
+  }
+  const marketValueAnalysis = response.marketValueAnalysis || {
+    score: marketValue.score,
+    deviation: 58,
+    nationalRank: '約24,000位 / 120,000人',
+    reason: marketValue.evaluation || '入力情報に基づく推定です。',
+    positiveFactors: [],
+    negativeFactors: [],
+    improvementActions: [],
+    breakdown: {
+      skillFit: normalizeBreakdownItem(),
+      experienceDepth: normalizeBreakdownItem(),
+      industryDemand: normalizeBreakdownItem(),
+      salaryRealism: normalizeBreakdownItem(),
+      careerConsistency: normalizeBreakdownItem(),
+      weaknessRisk: normalizeBreakdownItem(),
+      growthPotential: normalizeBreakdownItem(),
+    },
+  }
+  const salaryProjection = response.salaryProjection || {
+    currentRange: marketValue.currentEstimatedSalaryRange,
+    after3YearsRange: marketValue.threeYearSalaryRange,
+    after5YearsRange: marketValue.fiveYearSalaryRange,
+    projectionReason: marketValue.evaluation || '入力情報に基づく推定です。',
+    optimisticScenario: '成果の定量化と訴求整理により上振れ余地があります。',
+    conservativeScenario: '役割期待値とのズレが残ると上昇幅は抑えられます。',
+    requiredActions: [],
+  }
+  const successProbability = response.successProbability || {
+    current: 68,
+    after6Months: 76,
+    after1Year: 82,
+    reason: '書類と面接準備の精度で改善余地があります。',
+    assumptions: [],
+    blockers: [],
+    actionsToImprove: [],
   }
   const careerScenarios = Array.isArray(response.careerScenarios) ? response.careerScenarios : []
   const companyStrategyReports = Array.isArray(response.companyStrategyReports) ? response.companyStrategyReports : []
@@ -263,10 +330,25 @@ function normalizeAiResponse(response, profile, topCompanies) {
     summary: response.summary || response.aiSummary || 'AI推薦理由を取得しました。',
     companyInsights: companies,
     companies,
+    companyRecommendations,
     riskAnalysis: response.riskAnalysis || [],
     nextActions: response.nextActions || [],
     careerArchetype,
     marketValue,
+    marketValueAnalysis: {
+      ...marketValueAnalysis,
+      breakdown: {
+        skillFit: normalizeBreakdownItem(marketValueAnalysis.breakdown?.skillFit),
+        experienceDepth: normalizeBreakdownItem(marketValueAnalysis.breakdown?.experienceDepth),
+        industryDemand: normalizeBreakdownItem(marketValueAnalysis.breakdown?.industryDemand),
+        salaryRealism: normalizeBreakdownItem(marketValueAnalysis.breakdown?.salaryRealism),
+        careerConsistency: normalizeBreakdownItem(marketValueAnalysis.breakdown?.careerConsistency),
+        weaknessRisk: normalizeBreakdownItem(marketValueAnalysis.breakdown?.weaknessRisk),
+        growthPotential: normalizeBreakdownItem(marketValueAnalysis.breakdown?.growthPotential),
+      },
+    },
+    salaryProjection,
+    successProbability,
     careerScenarios,
     companyStrategyReports,
     careerRoadmap,
@@ -298,6 +380,59 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
 
   const normalizedProfile = extractProfileSignals(profile)
   const companies = topCompanies.map((company, index) => buildCompanyInsights(normalizedProfile, company, index, topCompanies.length))
+  const companyRecommendations = companies.map((company) => ({
+    companyName: company.companyName,
+    matchScore: Number(company.scoreBreakdown?.[0]?.value || 75),
+    whyRecommended: `${company.companyName}は、現在の経験と希望条件の接点が大きい候補です。`,
+    matchedUserFactors: (company.conditionTags || []).slice(0, 4),
+    companyFitReasons: (company.reasonCards || []).slice(0, 3).map((item) => item.detail),
+    roleFit: `${normalizedProfile.role || '現職'}経験を活かせる余地があります。`,
+    salaryFit: `${company.salaryRange || '想定レンジ未設定'} と現在の期待値の接続を取りやすいです。`,
+    cultureFit: `${company.culture || '公開情報未設定'}な文化傾向です。`,
+    workStyleFit: `${normalizedProfile.workStyle || '働き方未設定'}との整合を見ています。`,
+    growthFit: '成長機会と裁量のバランスが取りやすい候補です。',
+    concerns: company.cautionPoints || [],
+    interviewAppealPoints: (company.reasonCards || []).slice(0, 2).map((item) => item.title),
+    preparationActions: ['成果の定量化', '企業課題との接続整理'],
+    evidenceSummary: `${company.companyName}の公開情報ベースで、事業と役割の接点を整理しています。`,
+    sources: ['公開情報ベースの企業情報'],
+  }))
+  const marketValueAnalysis = {
+    score: 72,
+    deviation: 59,
+    nationalRank: '約21,000位 / 120,000人',
+    reason: '職種経験、得意領域、希望業界、年収帯のバランスから見て、市場価値は比較的高い水準です。',
+    positiveFactors: ['得意領域の再現性が高い', '希望業界の需要が高い'],
+    negativeFactors: ['企業ごとの訴求軸が未整理だと通過率が伸びにくい'],
+    improvementActions: ['実績の数値化', '応募先ごとの訴求整理'],
+    breakdown: {
+      skillFit: normalizeBreakdownItem({ score: 78, reason: '得意領域と希望職種の接続が強いです。', positiveFactors: ['要件定義・推進経験'], negativeFactors: ['見せ方が曖昧だと減点'], improvementActions: ['強みを3つに絞る'] }),
+      experienceDepth: normalizeBreakdownItem({ score: 74, reason: '経験年数と役割深度は一定水準です。', positiveFactors: ['経験年数が十分'], negativeFactors: ['上位ロール証跡の余地'], improvementActions: ['責任範囲を明示'] }),
+      industryDemand: normalizeBreakdownItem({ score: 80, reason: '希望業界の需要が高いです。', positiveFactors: ['SaaS/AI需要'], negativeFactors: ['業界を広げすぎると分散'], improvementActions: ['業界を絞る'] }),
+      salaryRealism: normalizeBreakdownItem({ score: 68, reason: '年収期待はやや高めですが説明可能です。', positiveFactors: ['推薦企業レンジと接続可能'], negativeFactors: ['短期でのジャンプは難しい場合がある'], improvementActions: ['成果根拠を整える'] }),
+      careerConsistency: normalizeBreakdownItem({ score: 73, reason: '転職目的と将来像の整合は比較的高いです。', positiveFactors: ['目的が明確'], negativeFactors: ['優先順位の整理余地'], improvementActions: ['優先順位を言語化'] }),
+      weaknessRisk: normalizeBreakdownItem({ score: 70, reason: '苦手領域が一部職種で懸念になります。', positiveFactors: ['避けるべき役割が明確'], negativeFactors: ['分析/調整系は一部で懸念'], improvementActions: ['補完策を準備'] }),
+      growthPotential: normalizeBreakdownItem({ score: 82, reason: '半年〜1年で伸びる余地が大きいです。', positiveFactors: ['追加準備の効果が高い'], negativeFactors: ['未整備だと機会損失'], improvementActions: ['学習と実績追加'] }),
+    },
+  }
+  const salaryProjection = {
+    currentRange: '700万〜900万円',
+    after3YearsRange: '850万〜1050万円',
+    after5YearsRange: '950万〜1250万円',
+    projectionReason: '現在のスキルと推薦企業レンジを踏まえると、3年・5年での伸長余地があります。',
+    optimisticScenario: '高需要職種へ寄せて成果訴求を強化すると上振れ余地があります。',
+    conservativeScenario: '役割との整合説明が弱い場合は伸び幅が抑えられます。',
+    requiredActions: ['成果の定量化', '高需要領域の実績追加'],
+  }
+  const successProbability = {
+    current: 68,
+    after6Months: 77,
+    after1Year: 84,
+    reason: '現時点でも競争力はありますが、書類と面接準備の精度で確率が大きく変わります。',
+    assumptions: ['応募先を絞る', '成果を数値で示す'],
+    blockers: ['希望条件と役割期待値のズレ', '企業別の訴求不足'],
+    actionsToImprove: ['職務経歴書の再設計', '面接回答の標準化', '実績の追加・学習証跡化'],
+  }
 
   return {
     debugVersion: '2026-06-19-debug-v1',
@@ -311,6 +446,7 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
     summary: '現時点の入力情報から、市場価値の強みと転職先候補の接点を整理しました。優先度の高い準備を進めることで、選考通過率の向上が見込めます。',
     companyInsights: companies,
     companies,
+    companyRecommendations,
     riskAnalysis: [
       '企業ごとに求められる成果指標の違いを整理しないと、訴求軸がぶれる可能性があります。',
       '選考前に職務経歴書の実績表現を数値ベースへ揃えると、評価の一貫性が高まります。',
@@ -341,6 +477,9 @@ export async function generateCompanyInsights(profile, topCompanies = [], analys
         growthPotential: 80,
       },
     },
+    marketValueAnalysis,
+    salaryProjection,
+    successProbability,
     careerScenarios: [
       {
         title: '業務改革リード',

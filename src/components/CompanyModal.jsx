@@ -23,6 +23,7 @@ export default function CompanyModal({ open, onClose, company }) {
   const avgAge = `${28 + Math.round((100 - Number(company.stabilityScore || 70)) / 6)}歳`
   const workStyle = Number(company.remoteScore || 0) >= 70 ? 'リモート中心' : Number(company.remoteScore || 0) >= 50 ? 'ハイブリッド' : '出社中心'
   const scoreBreakdown = Array.isArray(company.scoreBreakdown) ? company.scoreBreakdown : []
+  const recommendation = company.aiRecommendation || {}
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4 py-8">
       <div className="w-full max-w-2xl max-h-[82vh] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.2)]">
@@ -137,14 +138,36 @@ export default function CompanyModal({ open, onClose, company }) {
               <div className="rounded-2xl bg-white p-4 shadow-sm">
                 <p className="text-sm font-semibold text-slate-900">面接で訴求すべきポイント</p>
                 <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                  {(interviewAppeals || []).slice(0, 3).map((item) => <li key={item}>- {item}</li>)}
+                  {((recommendation.interviewAppealPoints || interviewAppeals) || []).slice(0, 3).map((item) => <li key={item}>- {item}</li>)}
                 </ul>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
                 <p className="text-sm font-semibold text-slate-900">選考前にやるべき準備</p>
                 <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                  {(preparations || []).slice(0, 3).map((item) => <li key={item}>- {item}</li>)}
+                  {((recommendation.preparationActions || preparations) || []).slice(0, 3).map((item) => <li key={item}>- {item}</li>)}
+                </ul>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-slate-900">診断結果との接続点</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                  {(recommendation.matchedUserFactors || []).slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
+                </ul>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-slate-900">企業情報に基づく推薦理由</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                  {(recommendation.companyFitReasons || []).slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
+                </ul>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-slate-900">参照情報の要約</p>
+                <p className="mt-2 text-sm leading-7 text-slate-600">{recommendation.evidenceSummary || '公開情報ベースの要約は準備中です。'}</p>
+                <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                  {(recommendation.sources || []).slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
                 </ul>
               </div>
 

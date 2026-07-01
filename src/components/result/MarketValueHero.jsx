@@ -46,7 +46,7 @@ function ProbabilityDonut({ data }) {
   )
 }
 
-export default function MarketValueHero({ marketMetrics, salarySeries, successRates }) {
+export default function MarketValueHero({ marketMetrics, salarySeries, successRates, marketValueEvidence, salaryProjectionDetails, successProbabilityDetails }) {
   return (
     <section id="overview" className="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-[0_22px_70px_rgba(15,23,42,0.08)] sm:p-8">
       <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
@@ -83,6 +83,36 @@ export default function MarketValueHero({ marketMetrics, salarySeries, successRa
             </div>
             <p className="mt-2 text-xs text-slate-500">現在: {marketMetrics.salaryCurrent} / 3年後: {marketMetrics.salary3y} / 5年後: {marketMetrics.salary5y}</p>
           </div>
+
+          {marketValueEvidence && (
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-[#F8FAFC] p-4">
+                <p className="text-sm font-semibold text-slate-900">このスコアの根拠</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{marketValueEvidence.reason}</p>
+                <div className="mt-3 grid gap-2">
+                  {Object.entries(marketValueEvidence.breakdown || {}).slice(0, 4).map(([key, item]) => (
+                    <div key={key} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{key}</p>
+                        <span className="text-sm font-semibold text-slate-900">{item.score}</span>
+                      </div>
+                      <p className="mt-1 text-xs leading-6 text-slate-600">{item.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-[#F8FAFC] p-4">
+                <p className="text-sm font-semibold text-slate-900">改善すると伸びるポイント</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                  {(marketValueEvidence.improvementActions || []).map((item) => <li key={item}>- {item}</li>)}
+                </ul>
+                <p className="mt-4 text-sm font-semibold text-slate-900">プラス評価</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                  {(marketValueEvidence.positiveFactors || []).map((item) => <li key={item}>- {item}</li>)}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-[#F8FAFC] p-4">
@@ -92,8 +122,26 @@ export default function MarketValueHero({ marketMetrics, salarySeries, successRa
             <ProbabilityDonut data={successRates} />
           </div>
           <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
-            現時点でも十分戦えますが、半年で書類と面接訴求を改善すると確率が大きく伸びます。
+            {successProbabilityDetails?.reason || '現時点でも十分戦えますが、半年で書類と面接訴求を改善すると確率が大きく伸びます。'}
           </div>
+          {(salaryProjectionDetails || successProbabilityDetails) && (
+            <div className="mt-4 space-y-3">
+              {salaryProjectionDetails && (
+                <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                  <p className="font-semibold text-slate-900">年収推移の前提</p>
+                  <p className="mt-1 leading-6">{salaryProjectionDetails.projectionReason}</p>
+                </div>
+              )}
+              {successProbabilityDetails && (
+                <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                  <p className="font-semibold text-slate-900">転職成功確率が上がる理由</p>
+                  <ul className="mt-2 space-y-1">
+                    {(successProbabilityDetails.actionsToImprove || []).map((item) => <li key={item}>- {item}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </section>

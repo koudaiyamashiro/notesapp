@@ -61,6 +61,16 @@ export default function CompanyRecommendationSection({ companies = [], onOpenCom
               <p className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-sky-500" />今やるべき準備: 実績の数値化と面接訴求ポイントの統一</p>
             </div>
 
+            {company.aiRecommendation && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                <p className="font-semibold text-slate-900">なぜこの企業なのか</p>
+                <p className="mt-1 leading-6">{company.aiRecommendation.whyRecommended}</p>
+                <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                  {(company.aiRecommendation.matchedUserFactors || []).slice(0, 2).map((item) => <li key={item}>- {item}</li>)}
+                </ul>
+              </div>
+            )}
+
             <div className="mt-4 flex justify-end">
               <button
                 type="button"

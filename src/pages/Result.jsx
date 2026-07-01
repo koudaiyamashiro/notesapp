@@ -67,6 +67,7 @@ function parseRangeMid(value) {
 function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
   return baseCompanies.map((company) => {
     const aiCompany = aiCompanies.find((item) => item.companyName === company.name)
+    const aiRecommendation = aiCompanies.find((item) => item.companyName === company.name)
     if (!aiCompany) return company
 
     return {
@@ -80,6 +81,7 @@ function mergeCompanyInsights(baseCompanies, aiCompanies = []) {
       conditionTags: aiCompany.conditionTags || company.conditionTags,
       scoreBreakdown: aiCompany.scoreBreakdown || company.scoreBreakdown,
       careerPathPreview: aiCompany.careerPath || company.careerPathPreview,
+      aiRecommendation,
       aiInsights: aiCompany,
     }
   })
@@ -198,28 +200,26 @@ export default function Result() {
   }, [aiInsights?.companies, result?.recommendedCompanies, historyTopCompanies])
 
   const marketMetrics = useMemo(() => {
-    const score = Number(aiInsights?.marketValue?.score || result.rawScore || 0)
+    const score = Number(aiInsights?.marketValueAnalysis?.score || aiInsights?.marketValue?.score || result.rawScore || 0)
     const percentileText = aiInsights?.marketValue?.percentile || getPercentileText(score)
-    const percentileMatch = percentileText.match(/(\d+)/)
-    const percentile = Number(percentileMatch?.[1] || 22)
-    const nationalRank = `約${Math.max(1200, percentile * 280).toLocaleString()}位 / 120,000人`
+    const nationalRank = aiInsights?.marketValueAnalysis?.nationalRank || `約${Math.max(1200, 22 * 280).toLocaleString()}位 / 120,000人`
     const sameAgeTop = Math.max(8, 100 - Number(result.generationComparison || 75))
     const sameAgeRank = `上位${sameAgeTop}%`
     const salaryFallback = getSalaryProjection(form.income)
-    const salaryCurrent = aiInsights?.marketValue?.currentEstimatedSalaryRange || salaryFallback.current
-    const salary3y = aiInsights?.marketValue?.threeYearSalaryRange || salaryFallback.y3
-    const salary5y = aiInsights?.marketValue?.fiveYearSalaryRange || salaryFallback.y5
+    const salaryCurrent = aiInsights?.salaryProjection?.currentRange || aiInsights?.marketValue?.currentEstimatedSalaryRange || salaryFallback.current
+    const salary3y = aiInsights?.salaryProjection?.after3YearsRange || aiInsights?.marketValue?.threeYearSalaryRange || salaryFallback.y3
+    const salary5y = aiInsights?.salaryProjection?.after5YearsRange || aiInsights?.marketValue?.fiveYearSalaryRange || salaryFallback.y5
 
     return {
       score,
-      deviation: clamp(Math.round((score - 50) * 0.6 + 50), 35, 75),
+      deviation: Number(aiInsights?.marketValueAnalysis?.deviation || clamp(Math.round((score - 50) * 0.6 + 50), 35, 75)),
       nationalRank,
       sameAgeRank,
       salaryCurrent,
       salary3y,
       salary5y,
     }
-  }, [aiInsights?.marketValue, form.income, result.generationComparison, result.rawScore])
+  }, [aiInsights?.marketValue, aiInsights?.marketValueAnalysis, aiInsights?.salaryProjection, form.income, result.generationComparison, result.rawScore])
 
   const salarySeries = useMemo(() => {
     const current = parseRangeMid(marketMetrics.salaryCurrent)
@@ -234,13 +234,13 @@ export default function Result() {
   }, [marketMetrics.salary3y, marketMetrics.salary5y, marketMetrics.salaryCurrent])
 
   const successRates = useMemo(() => {
-    const base = clamp(Math.round(Number(result.rawScore || 65) * 0.82), 45, 88)
+    const base = clamp(Math.round(Number(aiInsights?.successProbability?.current || result.rawScore || 65) * 1), 45, 88)
     return [
       { label: '現在応募した場合', value: base },
-      { label: '半年後', value: clamp(base + 8, 52, 93) },
-      { label: '1年後', value: clamp(base + 14, 58, 96) },
+      { label: '半年後', value: clamp(Number(aiInsights?.successProbability?.after6Months || base + 8), 52, 93) },
+      { label: '1年後', value: clamp(Number(aiInsights?.successProbability?.after1Year || base + 14), 58, 96) },
     ]
-  }, [result.rawScore])
+  }, [aiInsights?.successProbability, result.rawScore])
 
   const radarData = useMemo(() => buildRadarData(result.radarData, form), [form, result.radarData])
 
@@ -356,6 +356,10 @@ export default function Result() {
       ],
     }
   }, [actions, aiSummary, marketMetrics.deviation, marketMetrics.score, positives, recommendedCompanies, result.industries, result.roles, warnings])
+
+  const marketValueEvidence = aiInsights?.marketValueAnalysis || null
+  const salaryProjectionDetails = aiInsights?.salaryProjection || null
+  const successProbabilityDetails = aiInsights?.successProbability || null
 
   useEffect(() => {
     if (!hasDiagnosisData || isHistoryView || !user?.id) return
@@ -519,7 +523,14 @@ export default function Result() {
           />
 
           <div className="space-y-5">
-            <MarketValueHero marketMetrics={marketMetrics} salarySeries={salarySeries} successRates={successRates} />
+            <MarketValueHero
+              marketMetrics={marketMetrics}
+              salarySeries={salarySeries}
+              successRates={successRates}
+              marketValueEvidence={marketValueEvidence}
+              salaryProjectionDetails={salaryProjectionDetails}
+              successProbabilityDetails={successProbabilityDetails}
+            />
             <StrengthRadarPanel data={radarData} onOpenDetailed={() => setOpenDetailedDiagnosis(true)} />
             <RankingPanels
               industries={result.industries || []}
