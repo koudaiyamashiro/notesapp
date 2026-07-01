@@ -2,6 +2,18 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import MultiSelectTags from '../components/MultiSelectTags.jsx'
+import {
+  AGE_OPTIONS,
+  EXPERIENCE_OPTIONS,
+  INCOME_OPTIONS,
+  INDUSTRY_OPTIONS,
+  LEVEL_OPTIONS,
+  PURPOSE_OPTIONS,
+  WORK_STYLE_OPTIONS,
+  getGroupedRoleOptions,
+  getStrengthOptionsForRole,
+  getWeaknessOptionsForRole,
+} from '../data/assessmentOptions.js'
 
 const INITIAL_FORM = {
   age: '',
@@ -17,102 +29,6 @@ const INITIAL_FORM = {
   idealFuture: '',
 }
 
-function filterOptions(options, query) {
-  const keyword = String(query || '').trim().toLowerCase()
-  if (!keyword) return options
-  return options.filter((item) => item.toLowerCase().includes(keyword))
-}
-
-const AGE_OPTIONS = Array.from({ length: 65 - 18 + 1 }, (_, index) => 18 + index)
-const EXPERIENCE_OPTIONS = Array.from({ length: 40 }, (_, index) => ({ value: String(index + 1), label: `${index + 1}年` }))
-
-const ROLE_OPTIONS = [
-  '営業',
-  'マーケティング',
-  'ITコンサル',
-  '戦略コンサル',
-  'PM',
-  'BizDev',
-  '人事',
-  '経理',
-  '事業企画',
-  'エンジニア',
-  'データアナリスト',
-  'カスタマーサクセス',
-  'その他',
-]
-
-const LEVEL_OPTIONS = ['メンバー', '主任', '係長', '課長', '部長', '執行役員', '経営層']
-
-const COMMON_STRENGTH_OPTIONS = [
-  '課題整理',
-  '要件定義',
-  '顧客折衝',
-  '関係者調整',
-  'プロジェクト推進',
-  'データ分析',
-  '業務改善',
-  '戦略立案',
-  '企画立案',
-  '施策実行',
-  '新規開拓',
-  '既存顧客深耕',
-  'マネジメント',
-  'チームリード',
-  'プロダクト企画',
-  'マーケティング戦略',
-  '広告運用',
-  'CRM/MA活用',
-  '採用/組織開発',
-  '財務/数値管理',
-  'AI/デジタル活用',
-  'その他',
-]
-
-const STRENGTH_OPTIONS = {
-  営業: ['新規開拓', '既存顧客深耕', '顧客折衝', '関係者調整', '提案設計', '施策実行', '数値管理', 'チームリード', ...COMMON_STRENGTH_OPTIONS],
-  マーケティング: ['マーケティング戦略', '広告運用', 'CRM/MA活用', 'データ分析', '施策実行', '企画立案', 'プロジェクト推進', ...COMMON_STRENGTH_OPTIONS],
-  エンジニア: ['要件定義', '課題整理', 'AI/デジタル活用', 'プロジェクト推進', '業務改善', 'データ分析', 'チームリード', ...COMMON_STRENGTH_OPTIONS],
-  'ITコンサル': ['課題整理', '要件定義', '関係者調整', 'プロジェクト推進', '戦略立案', '業務改善', 'データ分析', ...COMMON_STRENGTH_OPTIONS],
-  '戦略コンサル': ['戦略立案', '課題整理', '要件定義', '企画立案', 'データ分析', '関係者調整', ...COMMON_STRENGTH_OPTIONS],
-  PM: ['プロダクト企画', '要件定義', 'プロジェクト推進', '関係者調整', 'データ分析', 'チームリード', ...COMMON_STRENGTH_OPTIONS],
-  BizDev: ['戦略立案', '企画立案', '新規開拓', '顧客折衝', '関係者調整', '施策実行', ...COMMON_STRENGTH_OPTIONS],
-  人事: ['採用/組織開発', '関係者調整', '企画立案', '施策実行', 'データ分析', 'マネジメント', ...COMMON_STRENGTH_OPTIONS],
-  経理: ['財務/数値管理', '業務改善', 'データ分析', '関係者調整', '課題整理', ...COMMON_STRENGTH_OPTIONS],
-  事業企画: ['戦略立案', '企画立案', '課題整理', 'プロジェクト推進', 'データ分析', '関係者調整', ...COMMON_STRENGTH_OPTIONS],
-  カスタマーサクセス: ['顧客折衝', '関係者調整', '業務改善', '施策実行', 'データ分析', ...COMMON_STRENGTH_OPTIONS],
-  データアナリスト: ['データ分析', '課題整理', '要件定義', '業務改善', 'AI/デジタル活用', ...COMMON_STRENGTH_OPTIONS],
-  その他: COMMON_STRENGTH_OPTIONS,
-}
-
-const WEAKNESS_OPTIONS = [
-  '曖昧な要件を自分で整理すること',
-  '関係者調整が多い環境',
-  '数値責任を強く求められる環境',
-  '新規開拓中心の営業活動',
-  '短期成果を強く求められる環境',
-  '高速な意思決定と変化対応',
-  '事業責任を持つこと',
-  'マネジメント業務',
-  '深い専門性を継続的に磨くこと',
-  '顧客折衝が多い業務',
-  '未経験領域を自走で学ぶこと',
-  '定量分析・データ活用',
-  '企画から実行まで一気通貫で担うこと',
-  'プレッシャーの高い環境',
-  '出社頻度が高い働き方',
-  '大企業的な調整文化',
-  'ベンチャー的な曖昧さ',
-  'グローバル/英語対応',
-  'その他',
-]
-
-const PURPOSE_OPTIONS = ['年収アップ', '市場価値向上', '裁量拡大', 'マネジメント経験', 'リモート勤務', 'ワークライフバランス', '専門性向上', '事業責任者', '起業準備', 'グローバル経験', 'その他']
-
-const INDUSTRY_OPTIONS = ['SaaS', 'AI', 'DX', 'ITコンサル', '人材', '広告', '金融', '製造', 'ヘルスケア', '教育', 'その他']
-
-const WORK_STYLE_OPTIONS = ['出社中心', 'ハイブリッド', 'フルリモート', '裁量重視', '安定重視']
-
 const steps = ['基本情報', '得意/苦手領域', '志向性']
 export default function Assessment() {
   const navigate = useNavigate()
@@ -120,8 +36,15 @@ export default function Assessment() {
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
   const [missingFields, setMissingFields] = useState({})
+  const [, setValidationAttempted] = useState({})
 
-  const strengthOptions = useMemo(() => STRENGTH_OPTIONS[form.role] || STRENGTH_OPTIONS['その他'], [form.role])
+  const groupedRoleOptions = useMemo(() => getGroupedRoleOptions(), [])
+  const strengthOptions = useMemo(() => getStrengthOptionsForRole(form.role), [form.role])
+  const weaknessOptions = useMemo(() => getWeaknessOptionsForRole(form.role), [form.role])
+
+  const markValidationAttempted = (stepIndex) => {
+    setValidationAttempted((prev) => ({ ...prev, [stepIndex]: true }))
+  }
 
   const toggleChip = (key, value) => {
     const current = form[key] || []
@@ -135,7 +58,7 @@ export default function Assessment() {
     const rawValue = event.target.value
     const value = key === 'age' && rawValue !== '' ? Number(rawValue) : rawValue
     if (key === 'role') {
-      setForm({ ...form, role: value, strengths: [] })
+      setForm({ ...form, role: value, strengths: [], weaknesses: [] })
     } else {
       setForm({ ...form, [key]: value })
     }
@@ -196,6 +119,7 @@ export default function Assessment() {
   }
 
   const goNext = () => {
+    markValidationAttempted(step)
     const missing = getStepMissingFields(step)
     const hasMissing = Object.values(missing).some(Boolean)
     if (hasMissing) {
@@ -220,6 +144,7 @@ export default function Assessment() {
 
   const handleSubmit = (event) => {
     event.preventDefault()
+    markValidationAttempted(step)
     const missing = getStepMissingFields(step)
     const hasMissing = Object.values(missing).some(Boolean)
     if (hasMissing) {
@@ -302,8 +227,12 @@ export default function Assessment() {
                     className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.role ? 'border-rose-400' : 'border-slate-300'}`}
                   >
                     <option value="">選択してください</option>
-                    {ROLE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>{item}</option>
+                    {Object.entries(groupedRoleOptions).map(([category, options]) => (
+                      <optgroup key={category} label={category}>
+                        {options.map((item) => (
+                          <option key={item.id} value={item.label}>{item.label}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                   {missingFields.role && <p className="text-xs text-rose-600">入力してください</p>}
@@ -345,17 +274,9 @@ export default function Assessment() {
                     className={`rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${missingFields.income ? 'border-rose-400' : 'border-slate-300'}`}
                   >
                     <option value="">選択してください</option>
-                    <option value="200未満">200万円未満</option>
-                    <option value="200-300">200〜300万円</option>
-                    <option value="300-400">300〜400万円</option>
-                    <option value="400-500">400〜500万円</option>
-                    <option value="500-600">500〜600万円</option>
-                    <option value="600-700">600〜700万円</option>
-                    <option value="700-800">700〜800万円</option>
-                    <option value="800-900">800〜900万円</option>
-                    <option value="900-1000">900〜1000万円</option>
-                    <option value="1000-1200">1000〜1200万円</option>
-                    <option value="1200以上">1200万円以上</option>
+                    {INCOME_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
                   </select>
                   {missingFields.income && <p className="text-xs text-rose-600">選択してください</p>}
                 </label>
@@ -366,9 +287,9 @@ export default function Assessment() {
               <div className="grid gap-5">
                 <MultiSelectTags
                   label="得意領域"
-                  description="あなたが強みとして活かせる領域を選択してください"
+                  description="現在の職種に近い実務スキルを上部表示しています。検索しながら複数選択できます。"
                   selected={form.strengths}
-                  options={Array.from(new Set(strengthOptions))}
+                  options={strengthOptions}
                   onToggle={(item) => toggleChip('strengths', item)}
                   onCustomAdd={(val) => addCustomTag('strengths', val, () => {})}
                   hasError={!!missingFields.strengths}
@@ -377,9 +298,9 @@ export default function Assessment() {
 
                 <MultiSelectTags
                   label="苦手領域"
-                  description="避けたい業務や負荷に感じやすい領域を選択してください"
+                  description="避けたい業務や負荷になりやすい実務シーンを選択してください。"
                   selected={form.weaknesses}
-                  options={WEAKNESS_OPTIONS}
+                  options={weaknessOptions}
                   onToggle={(item) => toggleChip('weaknesses', item)}
                   onCustomAdd={(val) => addCustomTag('weaknesses', val, () => {})}
                   hasError={!!missingFields.weaknesses}
@@ -418,7 +339,7 @@ export default function Assessment() {
 
                 <MultiSelectTags
                   label="希望業界"
-                  description="キャリアを築きたい業界を選んでください。複数選択できます。"
+                  description="キャリアを築きたい業界を選んでください。よく選ばれる業界を上部表示しています。"
                   selected={form.desiredIndustry}
                   options={INDUSTRY_OPTIONS}
                   onToggle={(item) => toggleChip('desiredIndustry', item)}
