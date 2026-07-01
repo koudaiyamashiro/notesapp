@@ -140,7 +140,7 @@ export default function Result() {
   const analyzedResult = useMemo(() => analyzeCareerProfile(form), [form])
   const result = isHistoryView && historyPayload?.result ? historyPayload.result : analyzedResult
 
-  const initialAiFromHistory = isHistoryView ? historyPayload?.aiSummary?.aiInsights || null : null
+  const initialAiFromHistory = null
   const historyTopCompanies = isHistoryView && Array.isArray(historyPayload?.topCompanies) ? historyPayload.topCompanies : []
 
   const [aiInsights, setAiInsights] = useState(initialAiFromHistory)
@@ -161,7 +161,7 @@ export default function Result() {
     }
 
     if (isHistoryView) {
-      setAiInsights(initialAiFromHistory)
+      setAiInsights(null)
       setAiError('')
       setAiLoading(false)
       return
@@ -190,7 +190,7 @@ export default function Result() {
     return () => {
       active = false
     }
-  }, [form, hasDiagnosisData, result, isHistoryView, initialAiFromHistory])
+  }, [form, hasDiagnosisData, result, isHistoryView])
 
   const recommendedCompanies = useMemo(() => {
     if (historyTopCompanies.length > 0) return historyTopCompanies
@@ -303,9 +303,9 @@ export default function Result() {
     })
   }, [aiInsights?.careerRoadmapDetails])
 
-  const aiSummary = historyPayload?.aiSummary?.aiSummary || aiInsights?.aiSummary || aiInsights?.summary || result.insights?.[0] || '現時点では市場価値が高く、準備次第でより良い条件の転職が狙えます。'
-  const positives = (historyPayload?.aiSummary?.positives || aiInsights?.careerArchetype?.strengths || result.insights || []).slice(0, 3)
-  const warningCandidates = (historyPayload?.aiSummary?.warnings || aiInsights?.riskAnalysis || aiInsights?.careerArchetype?.risks || []).slice(0, 3)
+  const aiSummary = historyPayload?.aiSummary || aiInsights?.aiSummary || aiInsights?.summary || result.insights?.[0] || '現時点では市場価値が高く、準備次第でより良い条件の転職が狙えます。'
+  const positives = (aiInsights?.careerArchetype?.strengths || result.insights || []).slice(0, 3)
+  const warningCandidates = (aiInsights?.riskAnalysis || aiInsights?.careerArchetype?.risks || []).slice(0, 3)
   const warnings = warningCandidates.length > 0
     ? warningCandidates
     : ['訴求ポイントが散らばると面接で強みが伝わりにくくなるため、軸の統一が必要です。', '希望条件を増やしすぎると選考母数が減るため、優先順位を決める必要があります。', '市場変動により採用要件が短期で変わるため、情報の更新頻度を上げる必要があります。']
@@ -330,10 +330,6 @@ export default function Result() {
   }))
 
   const aiStrategySummary = useMemo(() => {
-    if (historyPayload?.aiSummary?.aiStrategySummary) {
-      return historyPayload.aiSummary.aiStrategySummary
-    }
-
     const topIndustry = result.industries?.[0]?.label || '-'
     const topRole = result.roles?.[0]?.role || '-'
     const topCompany = recommendedCompanies?.[0]?.name || '-'
@@ -370,15 +366,8 @@ export default function Result() {
       userEmail: String(user.email || ''),
       title: buildHistoryTitle(form),
       profileJson: JSON.stringify(form),
-      resultJson: JSON.stringify(result),
       topCompaniesJson: JSON.stringify((recommendedCompanies || []).slice(0, 5)),
-      aiSummaryJson: JSON.stringify({
-        aiInsights,
-        aiSummary,
-        positives,
-        warnings,
-        aiStrategySummary,
-      }),
+      aiSummary,
       marketValueScore: Number(marketMetrics.score || 0),
       successProbability: Number(successRates?.[0]?.value || 0),
     }
@@ -391,7 +380,8 @@ export default function Result() {
         setSaveStatus('success')
         setSaveMessage('診断履歴を保存しました。')
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('DiagnosisHistory save failed:', error, 'payload:', payload)
         setSaveStatus('error')
         setSaveMessage('診断履歴の保存に失敗しました。結果表示は続行できます。')
       })

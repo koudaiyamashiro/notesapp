@@ -11,7 +11,7 @@ function formatDate(value) {
 }
 
 function getPrimaryRecommendation(history) {
-  const industry = history?.result?.industries?.[0]?.label
+  const industry = Array.isArray(history?.profile?.desiredIndustry) ? history.profile.desiredIndustry[0] : ''
   const company = history?.topCompanies?.[0]?.name
   return industry || company || '-'
 }

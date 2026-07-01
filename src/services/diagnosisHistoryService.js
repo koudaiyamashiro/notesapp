@@ -15,15 +15,16 @@ function normalizeHistoryItem(item) {
   return {
     ...item,
     profile: safeParseJson(item.profileJson, {}),
-    result: safeParseJson(item.resultJson, {}),
     topCompanies: safeParseJson(item.topCompaniesJson, []),
-    aiSummary: safeParseJson(item.aiSummaryJson, {}),
   }
 }
 
 export async function createDiagnosisHistory(input) {
-  const { data, errors } = await client.models.DiagnosisHistory.create(input)
+  const { data, errors } = await client.models.DiagnosisHistory.create(input, {
+    authMode: 'userPool',
+  })
   if (errors?.length) {
+    console.error('DiagnosisHistory.create errors:', errors, 'payload:', input)
     throw new Error(errors.map((error) => error.message).join('\n'))
   }
   return data

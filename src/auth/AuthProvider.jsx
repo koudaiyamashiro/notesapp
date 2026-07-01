@@ -3,6 +3,7 @@ import {
   confirmResetPassword,
   confirmSignIn,
   confirmSignUp,
+  fetchUserAttributes,
   getCurrentUser,
   resendSignUpCode,
   resetPassword,
@@ -14,8 +15,8 @@ import { ensureAmplifyConfigured } from '../lib/amplifyClient.js'
 
 const AuthContext = createContext(null)
 
-function normalizeUser(currentUser) {
-  const email = currentUser?.signInDetails?.loginId || currentUser?.username || ''
+function normalizeUser(currentUser, attributes = {}) {
+  const email = attributes?.email || currentUser?.signInDetails?.loginId || currentUser?.username || ''
   return {
     id: currentUser?.userId || currentUser?.username || email,
     email,
@@ -31,7 +32,8 @@ export function AuthProvider({ children }) {
   const refreshCurrentUser = async () => {
     try {
       const currentUser = await getCurrentUser()
-      setUser(normalizeUser(currentUser))
+      const attributes = await fetchUserAttributes().catch(() => ({}))
+      setUser(normalizeUser(currentUser, attributes))
       return currentUser
     } catch {
       setUser(null)

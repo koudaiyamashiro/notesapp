@@ -7,9 +7,8 @@ const schema = a.schema({
       userEmail: a.email().required(),
       title: a.string().required(),
       profileJson: a.string().required(),
-      resultJson: a.string().required(),
       topCompaniesJson: a.string().required(),
-      aiSummaryJson: a.string().required(),
+      aiSummary: a.string().required(),
       marketValueScore: a.integer(),
       successProbability: a.integer(),
     })
