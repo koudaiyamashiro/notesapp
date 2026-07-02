@@ -28,6 +28,7 @@ function ClauseSection({ index, title, paragraphs = [], bullets = [] }) {
 export default function LegalPageLayout({
   title,
   subtitle,
+  establishedAt,
   revisedAt,
   sections,
 }) {
@@ -40,7 +41,10 @@ export default function LegalPageLayout({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Legal</p>
           <h1 className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">{title}</h1>
           <p className="mt-4 text-sm leading-7 text-slate-700 sm:text-base">{subtitle}</p>
-          <p className="mt-4 text-xs text-slate-500">最終改定日: {revisedAt}</p>
+          <div className="mt-4 space-y-1 text-xs text-slate-500">
+            <p>制定日: {establishedAt}</p>
+            <p>最終改定日: {revisedAt}</p>
+          </div>
         </header>
 
         <div className="mt-8 space-y-5 sm:mt-10">

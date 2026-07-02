@@ -37,7 +37,10 @@ export default function Commerce() {
           <p className="mt-4 text-sm leading-7 text-slate-700 sm:text-base">
             有料サービスの提供条件、決済条件、解約条件等を特定商取引法に基づき表示しています。
           </p>
-          <p className="mt-4 text-xs text-slate-500">最終改定日: 2026-07-02</p>
+          <div className="mt-4 space-y-1 text-xs text-slate-500">
+            <p>制定日: 2026-07-02</p>
+            <p>最終改定日: 2026-07-02</p>
+          </div>
         </header>
 
         <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-10">
