@@ -78,6 +78,9 @@ export default function Header() {
               <Link className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-transform transform hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-200" to="/history">
                 診断履歴
               </Link>
+              <Link className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-transform transform hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-200" to="/billing">
+                契約管理
+              </Link>
               <span className="hidden max-w-[11rem] truncate rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 2xl:inline-flex">
                 {user?.email || 'ログイン中'}
               </span>
@@ -152,6 +155,13 @@ export default function Header() {
                   className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700"
                 >
                   診断履歴
+                </Link>
+                <Link
+                  to="/billing"
+                  onClick={closeMobileMenu}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700"
+                >
+                  契約管理
                 </Link>
                 <Link
                   to="/assessment"

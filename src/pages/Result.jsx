@@ -14,7 +14,8 @@ import CompanyRecommendationSection from '../components/result/CompanyRecommenda
 import CompanyComparisonTable from '../components/result/CompanyComparisonTable.jsx'
 import RoadmapTimelineSection from '../components/result/RoadmapTimelineSection.jsx'
 import DecisionPanels from '../components/result/DecisionPanels.jsx'
-import DetailedDiagnosisModal from '../components/result/DetailedDiagnosisModal.jsx'
+import { useSubscriptionPlan } from '../hooks/useSubscriptionPlan.js'
+import { PLAN_IDS } from '../lib/planCapabilities.js'
 
 const DEFAULT_FORM = {
   age: '32',
@@ -128,6 +129,7 @@ export default function Result() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const subscription = useSubscriptionPlan()
 
   const statePayload = location.state && typeof location.state === 'object' ? location.state : null
   const historyPayload = statePayload?.__historyPayload || null
@@ -152,7 +154,6 @@ export default function Result() {
   const [saveMessage, setSaveMessage] = useState('')
   const [activeSectionId, setActiveSectionId] = useState('overview')
   const [openCompany, setOpenCompany] = useState(null)
-  const [openDetailedDiagnosis, setOpenDetailedDiagnosis] = useState(false)
 
   useEffect(() => {
     if (!hasDiagnosisData) {
@@ -318,15 +319,24 @@ export default function Result() {
 
   const nextActionTexts = (aiInsights?.nextActions || result.actions || []).slice(0, 6)
   const actionTitles = ['履歴書作成', '職務経歴書改善', '面接対策', '企業研究', 'AI相談', 'さらに詳細診断を行う']
+  const isFreePlan = subscription.plan === PLAN_IDS.FREE || !subscription.isPaid
+  const advancedDiagnosisCta = isFreePlan ? 'Standard以上で利用可能' : '詳細診断を開始する'
+  const advancedDiagnosisDetail = isFreePlan
+    ? '詳細診断はStandard以上で利用できます。より精密な市場価値分析・企業比較・キャリアロードマップを確認できます。'
+    : subscription.plan === PLAN_IDS.STANDARD
+      ? '詳細診断を開始できます。Standardプランは月3回まで利用可能です。'
+      : '詳細診断を開始できます。Proプランは無制限で利用可能です。'
+
   const actions = actionTitles.map((title, idx) => ({
     title,
     time: idx < 2 ? '60分' : idx < 4 ? '45分' : '30分',
     detail:
       idx === 5
-        ? '追加の経験・成果・志向性を入力することで、より精密な市場価値スコア、企業推薦、キャリアロードマップを生成できます。'
+        ? advancedDiagnosisDetail
         : nextActionTexts[idx] || '転職成功確率を上げるための実行アクションを具体化してください。',
-    cta: idx === 5 ? '近日提供' : idx === 4 ? 'AIに相談する' : '着手する',
-    comingSoon: idx === 5,
+    cta: idx === 5 ? advancedDiagnosisCta : idx === 4 ? 'AIに相談する' : '着手する',
+    href: idx === 5 ? (isFreePlan ? '/#pricing' : '/advanced-diagnosis') : '/assessment',
+    locked: idx === 5 ? isFreePlan : false,
   }))
 
   const aiStrategySummary = useMemo(() => {
@@ -531,7 +541,7 @@ export default function Result() {
               salaryProjectionDetails={salaryProjectionDetails}
               successProbabilityDetails={successProbabilityDetails}
             />
-            <StrengthRadarPanel data={radarData} onOpenDetailed={() => setOpenDetailedDiagnosis(true)} />
+            <StrengthRadarPanel data={radarData} onOpenDetailed={() => navigate('/advanced-diagnosis')} />
             <RankingPanels
               industries={result.industries || []}
               roles={result.roles || []}
@@ -539,7 +549,7 @@ export default function Result() {
               roleReasons={roleReasons}
             />
             <CompanyRecommendationSection companies={recommendedCompanies} onOpenCompany={(company) => setOpenCompany(company)} />
-            <CompanyComparisonTable companies={recommendedCompanies} />
+            <CompanyComparisonTable companies={isFreePlan ? recommendedCompanies.slice(0, 3) : recommendedCompanies} />
             <RoadmapTimelineSection roadmapItems={roadmapItems} />
             <DecisionPanels
               aiSummary={aiStrategySummary}
@@ -552,7 +562,6 @@ export default function Result() {
         </div>
 
         <CompanyModal open={Boolean(openCompany)} onClose={() => setOpenCompany(null)} company={openCompany} />
-        <DetailedDiagnosisModal open={openDetailedDiagnosis} onClose={() => setOpenDetailedDiagnosis(false)} />
       </main>
     </div>
   )

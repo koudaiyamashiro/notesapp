@@ -98,12 +98,12 @@ function ActionBlock({ actions }) {
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900"><Lightbulb className="h-4 w-4 text-sky-500" />{item.title}</p>
             <p className="mt-2 text-xs text-slate-500">所要: {item.time}</p>
             <p className="mt-2 text-sm leading-6 text-slate-700">{item.detail}</p>
-            {item.comingSoon ? (
+            {item.locked ? (
               <button type="button" className="mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
                 {item.cta}
               </button>
             ) : (
-              <Link to="/assessment" className="mt-3 inline-flex rounded-full bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-400">
+              <Link to={item.href || '/assessment'} className="mt-3 inline-flex rounded-full bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-400">
                 {item.cta}
               </Link>
             )}

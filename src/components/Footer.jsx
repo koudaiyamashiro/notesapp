@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 const productLinks = [
   { label: 'ホーム', href: '/' },
   { label: '診断開始', href: '/assessment' },
+  { label: '詳細診断', href: '/advanced-diagnosis' },
   { label: '診断結果', href: '/result' },
   { label: '企業比較', href: '/#comparison' },
   { label: '料金', href: '/#pricing' },
@@ -18,6 +19,7 @@ const legalLinks = [
 
 const supportLinks = [
   { label: 'お問い合わせ', href: 'mailto:contact@career-strategist.ai', external: true },
+  { label: '契約管理', href: '/billing' },
   { label: 'FAQ', href: '/#faq' },
 ]
 

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Brain, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react'
 
 const detailItems = [
@@ -68,9 +69,9 @@ export default function DetailedDiagnosisModal({ open, onClose }) {
               </ul>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900"><ShieldCheck className="h-4 w-4 text-sky-500" />提供予定</p>
+              <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900"><ShieldCheck className="h-4 w-4 text-sky-500" />利用条件</p>
               <p className="mt-2 text-sm leading-7 text-slate-700">
-                詳細診断機能は正式版で提供予定です。現時点では先行導線のみ表示しています。
+                詳細診断はStandard/Proで利用できます。入力を増やすことで、より精密な市場価値分析と企業比較を確認できます。
               </p>
             </div>
           </div>
@@ -82,12 +83,9 @@ export default function DetailedDiagnosisModal({ open, onClose }) {
             >
               後で確認する
             </button>
-            <button
-              className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
-              onClick={onClose}
-            >
-              近日提供
-            </button>
+            <Link className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400" to="/advanced-diagnosis">
+              詳細診断へ進む
+            </Link>
           </div>
         </div>
       </div>

@@ -19,7 +19,7 @@ If you are developing a production application, we recommend using TypeScript wi
 
 - Login is implemented with Amplify Auth (Cognito) using email + password.
 - Public route: `/`
-- Protected routes: `/assessment`, `/diagnosis`, `/analysis`, `/result`
+- Protected routes: `/assessment`, `/diagnosis`, `/analysis`, `/result`, `/history`, `/billing`, `/advanced-diagnosis`
 - App loads Auth config from `/amplify_outputs.json` at runtime.
 
 ### Local verification steps
@@ -56,3 +56,52 @@ After backend updates, regenerate/reload outputs and restart dev server if neede
 - Do not hardcode passwords, API keys, or secrets in frontend code.
 - For local verification, create a Cognito test user manually (example email: `test@example.com`).
 - Password must be set only in Cognito/User Pool management.
+
+## Stripe Billing setup (test mode first)
+
+最初は必ず Stripe test mode で検証してください。本番キーへの切り替えは一連の決済フロー確認後に実施します。
+
+### Stripe Dashboard 側の準備
+
+1. Stripe アカウントを作成し、test mode を有効化する。
+2. Product を作成する。
+	- Career Strategist AI Standard
+	- Career Strategist AI Pro
+3. Recurring Price を作成する。
+	- Standard: 550 JPY / month
+	- Pro: 1498 JPY / month
+4. Webhook Endpoint を作成する（Amplify の `custom.stripeWebhookUrl`）。
+5. Webhook event を選択する。
+	- checkout.session.completed
+	- customer.subscription.created
+	- customer.subscription.updated
+	- customer.subscription.deleted
+	- invoice.payment_succeeded
+	- invoice.payment_failed
+6. Secret key と Webhook signing secret を取得する。
+7. Price ID（Standard / Pro）を控える。
+8. Stripe Customer Portal を有効化する。
+
+### Lambda 環境変数
+
+以下はフロントではなく Lambda 環境変数へ設定してください。
+
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+- STRIPE_STANDARD_PRICE_ID
+- STRIPE_PRO_PRICE_ID
+- APP_BASE_URL
+
+### 実装済みエンドポイント
+
+- createCheckoutSession (authenticated mutation)
+- createCustomerPortalSession (authenticated mutation)
+- stripeWebhook (Lambda Function URL)
+
+### 主要動作確認
+
+1. Pricing の Standard / Pro ボタンで Stripe Checkout に遷移する。
+2. 決済後に /billing/success へ戻る。
+3. /billing でプラン・ステータス・次回更新日が表示される。
+4. 契約管理ボタンで Stripe Customer Portal に遷移する。
+5. Webhook で SubscriptionStatus が同期される。

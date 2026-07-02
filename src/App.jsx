@@ -11,6 +11,10 @@ import Terms from './pages/Terms.jsx'
 import Privacy from './pages/Privacy.jsx'
 import Disclaimer from './pages/Disclaimer.jsx'
 import Commerce from './pages/Commerce.jsx'
+import Billing from './pages/Billing.jsx'
+import BillingSuccess from './pages/BillingSuccess.jsx'
+import BillingCancel from './pages/BillingCancel.jsx'
+import AdvancedDiagnosis from './pages/AdvancedDiagnosis.jsx'
 
 function App() {
   return (
@@ -23,6 +27,8 @@ function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/disclaimer" element={<Disclaimer />} />
           <Route path="/commerce" element={<Commerce />} />
+          <Route path="/billing/success" element={<BillingSuccess />} />
+          <Route path="/billing/cancel" element={<BillingCancel />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/assessment" element={<Assessment />} />
@@ -30,6 +36,8 @@ function App() {
             <Route path="/analysis" element={<Analysis />} />
             <Route path="/result" element={<Result />} />
             <Route path="/history" element={<History />} />
+            <Route path="/billing" element={<Billing />} />
+            <Route path="/advanced-diagnosis" element={<AdvancedDiagnosis />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

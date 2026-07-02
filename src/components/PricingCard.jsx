@@ -1,4 +1,16 @@
-export default function PricingCard({ title, price, description, features, featured, recommended }) {
+export default function PricingCard({
+  title,
+  price,
+  description,
+  features,
+  featured,
+  recommended,
+  isCurrentPlan,
+  isLoading,
+  actionLabel,
+  subNote,
+  onSelect,
+}) {
   return (
     <div className={`rounded-[2rem] border p-8 shadow-[0_28px_90px_rgba(15,23,42,0.08)] transition ${featured ? 'border-sky-200 bg-[#EAF6FF] text-slate-900' : 'border-slate-200 bg-white text-slate-900'} ${recommended ? 'ring-1 ring-sky-300/70' : ''}`}>
       <div className="flex items-start justify-between gap-4">
@@ -6,6 +18,7 @@ export default function PricingCard({ title, price, description, features, featu
           <h3 className="text-xl font-semibold text-slate-900">{title}</h3>
           <p className="mt-2 text-sm text-slate-600">{description}</p>
         </div>
+        {isCurrentPlan && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Current</span>}
         {featured && <span className="rounded-full bg-sky-500 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">Best value</span>}
         {recommended && !featured && <span className="rounded-full bg-[#EAF6FF] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Recommended</span>}
       </div>
@@ -20,8 +33,16 @@ export default function PricingCard({ title, price, description, features, featu
           ))}
         </ul>
       </div>
-      <button className={`mt-10 w-full rounded-full px-5 py-3 text-sm font-semibold transition ${featured ? 'bg-sky-500 text-white hover:bg-sky-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-        今すぐ選ぶ
+
+      {subNote && <p className="mt-4 text-xs leading-6 text-slate-500">{subNote}</p>}
+
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={isLoading}
+        className={`mt-6 w-full rounded-full px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${featured ? 'bg-sky-500 text-white hover:bg-sky-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+      >
+        {isLoading ? '処理中...' : actionLabel || '今すぐ選ぶ'}
       </button>
     </div>
   )
