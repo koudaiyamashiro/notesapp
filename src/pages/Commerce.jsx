@@ -1,19 +1,28 @@
 import Header from '../components/Header.jsx'
 import Footer from '../components/Footer.jsx'
 
+const commerceProfile = {
+  BusinessName: '未定',
+  Representative: '未定',
+  Address: '未定',
+  SupportEmail: '未定',
+}
+
 const rows = [
-  ['販売事業者名', '未定'],
-  ['運営責任者', '未定'],
-  ['所在地', '未定'],
-  ['メールアドレス', '未定'],
-  ['販売価格', '各プランページに表示'],
-  ['商品代金以外の必要料金', '通信料、インターネット接続費用等は利用者負担'],
-  ['支払方法', 'クレジットカード（予定）'],
-  ['支払時期', '申込時（予定）'],
-  ['提供時期', '決済完了後、直ちに利用可能（予定）'],
-  ['返品・キャンセル', 'デジタルサービスの性質上、原則返金不可（法令上必要な場合を除く）'],
-  ['解約', 'マイページまたはお問い合わせ経由で手続き可能（予定）'],
-  ['動作環境', 'インターネット接続環境および主要ブラウザの最新版'],
+  ['販売事業者名', commerceProfile.BusinessName],
+  ['運営責任者', commerceProfile.Representative],
+  ['所在地', commerceProfile.Address],
+  ['問い合わせ先メールアドレス', commerceProfile.SupportEmail],
+  ['販売価格', '各プランページに表示（特段の記載がない限り税込表示）'],
+  ['商品代金以外の必要料金', '通信料、インターネット接続費用、端末費用等は利用者負担'],
+  ['支払方法', 'Stripeによるクレジットカード決済（Visa、Mastercard、JCB、American Express、Diners Club 等）'],
+  ['支払時期', '初回申込時に課金。以後は契約更新日に自動課金'],
+  ['提供時期', '決済完了後に有料機能が利用可能。通信状況やシステム処理状況により開始が遅延する場合があります'],
+  ['契約期間・自動更新', '月額契約を前提とし、契約は毎月自動更新されます。次回更新日前までに解約した場合、翌月以降の請求は停止されます'],
+  ['途中解約・返金', '途中解約は可能ですが、契約期間の残存日数に対する日割返金は行いません。法令上必要な場合を除き返金には応じません'],
+  ['解約方法', 'マイページまたはお問い合わせ窓口から解約手続きが可能です。解約後も契約期間満了日までは利用できます'],
+  ['動作環境', 'Google Chrome、Safari、Microsoft Edge、Firefox 各最新版（いずれもインターネット接続が必要）'],
+  ['AIサービスに関する注意', 'Career Strategist AIはAIによる参考情報を提供するサービスであり、転職成功、内定獲得、年収向上その他成果を保証しません'],
 ]
 
 export default function Commerce() {
@@ -26,7 +35,7 @@ export default function Commerce() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Commerce</p>
           <h1 className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">特定商取引法に基づく表記</h1>
           <p className="mt-4 text-sm leading-7 text-slate-700 sm:text-base">
-            有料サービス提供開始時に、未確定項目は速やかに更新します。
+            有料サービスの提供条件、決済条件、解約条件等を特定商取引法に基づき表示しています。
           </p>
           <p className="mt-4 text-xs text-slate-500">最終改定日: 2026-07-02</p>
         </header>
@@ -45,7 +54,7 @@ export default function Commerce() {
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 text-sm leading-7 text-slate-700 shadow-sm sm:p-6">
           <h2 className="text-base font-semibold text-slate-900">補足</h2>
           <p className="mt-3">
-            本ページは、SaaS有料機能の正式提供に向けた暫定版です。料金、更新条件、自動更新、解約、返金条件等の詳細は有料プラン提供開始時に確定版へ更新します。
+            本ページは、法令改正、サービス内容変更、決済事業者仕様変更等に応じて更新される場合があります。最新の内容をご確認ください。
           </p>
         </section>
       </main>
