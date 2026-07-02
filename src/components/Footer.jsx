@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 export default function Footer() {
   return (
     <footer className="bg-[#F8FAFC] text-slate-700">
@@ -29,9 +31,10 @@ export default function Footer() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">会社情報</p>
             <ul className="mt-6 space-y-3 text-sm text-slate-600">
-              <li>運営会社</li>
-              <li>利用規約</li>
-              <li>プライバシーポリシー</li>
+              <li><Link className="transition hover:text-slate-900" to="/terms">利用規約</Link></li>
+              <li><Link className="transition hover:text-slate-900" to="/privacy">プライバシーポリシー</Link></li>
+              <li><Link className="transition hover:text-slate-900" to="/disclaimer">免責事項</Link></li>
+              <li><Link className="transition hover:text-slate-900" to="/commerce">特定商取引法に基づく表記</Link></li>
             </ul>
           </div>
         </div>
